@@ -1,0 +1,221 @@
+---
+title: "The Secrets of $191,792,091.00 in Unclaimed Money"
+author: "Anjali Sharma, Chen Zhong, Supervisor Glenn Stone"
+date: "24 August 2015"
+output: beamer_presentation
+---
+
+# Introduction
+
+* Why money is left unclaimed:
+    + Forgetting
+    + Bad bookkeeper
+    + Moving
+
+* Our research:
+    + Monetary value
+    + Number of accounts 
+
+* Reasons for choosing this topic:
+    + No one has analysed this data before.
+    + Original idea
+    + Challenge
+    + No copyright
+
+# Approach
+* 380,671 accounts, going back to the year 1900. 
+* Tableau
+* R
+    + Merging
+    + Cleaning
+    + Sorting
+    + GLM
+    + R Markdown
+* Are any organization types correlated with frequency or amount of unclaimed money?
+    + i.e. Financial Services.
+    + i.e. Insurance.
+    + i.e. Government.
+    + i.e. Utility.
+    + i.e. Mortgage Lending etc.
+* Is frequency different across different areas?
+    + i.e. postcode, greater area, population density
+
+#![Description Pie](http://i.imgur.com/PsQCM2m.png)
+
+# Approach 
+
+* Anjali is modelling for the number of accounts
+    + Counting accounts means weighting areas by their population to obtain meaningful model
+    + Zero-truncated Poisson model to account for the fact that our data only takes into account the ones with missing money.
+    
+* Chen is modelling for the amounts in the accounts
+    + Amounts requires working out the distribution it has with each variable and using the appropriate link function to create a meaningful model.
+    + Finding the right distribution is going to be a challenge due to the amount of distributions covered by GLM and their similarity.
+    
+# Categorising Organisations
+
+* First categorising top 100 company from the original data
+    + the reasons for choosing top 100 company
+```{r, echo=FALSE}
+NumEntries = c(268, 276, 283, 289, 295, 299, 304, 307, 311, 314)
+NumTopOrg = c(70, 80, 90, 100, 110, 120, 130, 140, 150, 160)
+percentage = NumEntries/380
+ORGSUM = data.frame(NumEntries, NumTopOrg, percentage)
+ORGSUM
+```
+* Then match the company category back into the original data
+
+# Categorising Organisations
+Organisation|Type
+-------------|:------------------------------------------------------------------------:
+QANTAS AIRWAYS LTD|Airline
+GRAINCORP LTD|Beverage and Food
+MACQUARIE UNI|Education
+AMP LTD|Financial Services
+TAB LTD|Gaming
+CITY OF SYDNEY|Government
+RINKER GROUP PTY LTD|Industrial
+GIO GEN LTD|Insurance
+ECORP LTD|IT
+TEN NETWORK HLDGS|Media Company
+ARRIUM LTD|Mining
+QBE LENDERS MORTGAGE INSCE LTD|Mortgage Lending
+MIRVAC REAL EST INVEST TRUST|Property Management
+WOOLWORTHS LTD|Retailer
+BT FUNDS MGMT|SuperFund
+ENERGY AUST (NCLE)|Utility
+
+#![Organisation.Type Pie](http://i.imgur.com/kE44fBQ.png)
+
+# Extracting Postcodes using regex function
+* Data collation
+    + File conversion
+    + Merging
+    + Extracting postcodes
+
+* Sourced: Aus Post postcodes
+* Removed: PO Box and Locked Bag numbers
+
+Pattern for extracting postcodes (line-break for printing only)
+
+$$ (0[289][0-9]{2})|([1345689][0-9]{3})|$$
+$$ (2[0-8][0-9]{2})|(290[0-9])|(291[0-4])| $$
+$$ (7[0-4][0-9]{2})|(7[8-9][0-9]{2}) $$
+
+
+# Classifying Postcodes into categories
+
+* Larger areas
+    + Aggregate
+    + Time
+    + Relation to business categories
+
+We classified postcodes by creating a function of if-statements:
+
+```{r, eval=FALSE}
+PC2Area = function(PC) {
+  
+  if( PC %in% c(2600, 2601, 2610) )
+    return("Canberra CBD")
+  if( PC >= 2601 && PC <= 2609 )
+    return("Canberra Metro")
+  ...
+
+```
+
+# Classifying Postcodes into categories
+
+Area|Postcode Range
+-----|-----------------------------------------
+Sydney CBD|1100 - 1299, 2000, 2001, 2007, 2009
+Sydney Metro|2002 - 2006, 2008, 2010 - 2234
+Riverina Area|2640 - 2660
+Wollongong|2500 - 2534
+Newcastle|2265 - 2333
+Northern Rivers|2413 - 2484
+Rest of NSW|2235 - 2412, 2485 - 2999
+...|...
+
+#![Area Map](http://i.imgur.com/wYEVDd8.png)
+
+#![Area Pie](http://i.imgur.com/2pbr39S.png)
+
+# Adding population data for each area
+
+* ABS
+* 2014
+* 38 areas
+
+We matched all 38 postcode areas to the corresponding ABS data:
+
+PC AREA|ABS AREA|2014 POP.
+---------|----------|---------------------------
+Sydney CBD|Sydney Inner City|203774 
+Sydney Metro|Greater Sydney|4636854 
+Riverina Area|Riverina Area|158144 
+Wollongong|Wollongong|296845 
+Newcastle|Newcastle|368131 
+Northern Rivers|Richmond Tweed|242116 
+Rest of NSW|Rest of NSW|1612608 
+...|...|...
+
+# Concept
+* GLM = "generalised linear model"
+* Mildly non-normally distributed responses
+    + i.e Number of accounts 
+    + i.e Amount of money lost
+
+* Use different distribution of errors (may not be normally distributed). 
+* Handles responses 
+    + 0 or 1 (binomial regression) 
+    + Discrete counts (Poisson regression)
+* GLM transforms the data to make the response and variables linearly for distributions from the exponential family.
+
+
+# Statistical Theory
+
+GLM = linear model + link function 
+      + distribution mean + dispersion parameter (not always needed)
+
+This is the exponential family model:
+$$ f(y | \theta,\phi)=exp(\frac{y\theta-b(\theta)}{a(\phi)}+c(y,\phi)) $$
+
+Canonical link functions for GLMs: $\mu=g^{-1}(X\beta)$
+
+Family|C. Link|Variance Function
+:-------:|:------:|:-------------------------------------:
+$Normal$|$\mu$|$1$
+$Poisson$|$\log(\mu)$|$\mu$
+$Binomial$|$\log(\frac{\mu}{1-\mu})$|$\frac{\mu}{1-\mu}$
+$Gamma$|$\frac{1}{\mu}$|$\mu^2$
+$Inverse Gaussian$|$\frac{1}{\mu^2}$|$\mu^3$
+
+# Poisson Distribution
+For a Poisson distribution, the link function is derived as follows: 
+
+Poisson formula: $f(y | \theta,\phi)=\frac{e^{-\mu}\mu^y}{y!}$
+
+After some manipulation: $exp(y\log(\mu)-\mu-\log(y!))$
+
+Therefore, the canonical link function is: 
+
+$$ \theta=\log(\mu) $$ 
+
+...as this is the part multiplied by $y$, but containing no $y$.
+
+In statistics, $\log$ is base $e$ and $\mu$ is the mean. 
+
+In this way, GLM can be used to capture non-linear data structures.
+
+
+# References
+
+Abs.gov.au,. '3218.0 -  Regional Population Growth, Australia, 2013-14'. N.p., 2015. Web. 12 Aug. 2015.
+
+Apps08.osr.nsw.gov.au,. 'NSW Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+
+Faraway, Julian James. Extending Linear Models With R. Boca Raton, Fla.: Chapman & Hall/CRC, 2006. Print.
+
+Osr.nsw.gov.au,. 'About Unclaimed Money | Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+
+Tyree, Alan L. 'Unclaimed Money -- Again'. Austlii.edu.au. N.p., 2015. Web. 22 Aug. 2015.

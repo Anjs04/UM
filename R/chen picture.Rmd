@@ -1,8 +1,0 @@
----
-title: "Untitled"
-author: "Anjali Sharma, Chen Zhong, Supervisor Glenn Stone"
-date: "13 October 2015"
-output: pdf_document
----
-
-$\mathcal{L}(\beta)$
