@@ -1,0 +1,42 @@
+---
+title: "Testing Latex"
+output: pdf_document
+---
+
+## Binomial Distribution
+For a binomial distribution, the canonical link function is derived as follows:
+
+\begin{eqnarray*}
+f(y | \theta,\phi)=\binom{n}{y}\mu^y(1-\mu)^{n-y}
+&=&exp(\log\binom{n}{y}\mu^y(1-\mu)^{n-y})) \\
+&=&exp(\log\binom{n}{y}+\log(\mu^y)+\log((1-\mu)^{n-y}))
+\end{eqnarray*}
+
+\begin{eqnarray*}
+f(y | \theta,\phi)=\binom{n}{y}\mu^y(1-\mu)^{n-y}
+&=&exp(\log\binom{n}{y}\mu^y(1-\mu)^{n-y})) \\
+&=&exp(\log\binom{n}{y}+\log(\mu^y)+\log((1-\mu)^{n-y})) \\
+&=&exp(\log\binom{n}{y}+y\log(\mu)+(n-y)\log(1-\mu)) \\
+&=&exp(\log\binom{n}{y}+y\log(\mu)+n\log(1-\mu)-y\log(1-\mu)) \\
+&=&exp(\log\binom{n}{y}+y\log(\frac{\mu}{1-\mu})+n\log(1-\mu)-y\log(1-\mu))
+\end{eqnarray*}
+
+Therefore, the link function is 
+$$ \theta=\log(\mu/(1-\mu)) $$
+
+## Poisson Distribution
+For a poisson distribution, the link function is derived as follows: 
+
+\begin{eqnarray*}
+f(y | \theta,\phi)=\frac{e^{-\mu}\mu^y}{y!}
+&=&exp(\log(\frac{e^{-\mu}\mu^y}{y!})) \\
+&=&exp(\log(e^{-\mu})+\log(\mu^y)-\log(y!)) \\
+&=&exp(-\mu+\log(\mu^y)-\log(y!)) \\
+&=&exp(\log(\mu^y)-\mu+-\log(y!))
+\end{eqnarray*}
+
+Therefore, the link function is 
+$$\theta=\log(\mu) $$
+
+In statistics, $\log$ is base 10 and $\mu$ is the mean. 
+In this way, GLM can be used to capture non-linear data structures.

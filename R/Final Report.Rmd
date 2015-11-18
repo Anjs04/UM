@@ -1,0 +1,862 @@
+
+---
+title: |
+       | University of Western Sydney
+       | 200045 Quantitative Project 
+       | --
+       | A GLM-Based Method for Investigating Unclaimed Money
+
+author: "Anjali Sharma, Chen Zhong. Supervisor: Glenn Stone"
+date: '`r Sys.Date()`'
+output:
+  pdf_document:
+    toc: yes
+    number_sections: true
+---
+```{r, echo=FALSE}
+#This is needed to generate the models and graphs below, it does not show up in the final report.
+UM <- read.csv("G:/Quantitative Project/UM.csv")
+UM2 = na.omit(UM[,c("Amount", "Year", "Organisation.Type", "Area", "Classified")])
+UML = subset(UM2, Year > 1960 & Year < 2009)
+```
+
+\newpage
+
+# Introduction
+
+This research takes an in-depth look at both the monetary value and the number of accounts containing unclaimed money across NSW. Unclaimed money is the money held by the NSW state government that is given by an entity but remained uncollected by the recipient for some amount of time. The period of inactivity has been defined as 7 years for accounts held before December 2012, 3 years for accounts held between December 2012 and May 2015, and 7 years for those held after May 2015.
+
+The question we have addressed is the effect of the area, organisation type, year account was opened and year account was classified on the number of accounts as well as the monetary value. 
+
+
+## Why research unclaimed money?
+
+Unclaimed Money is a public data set that has attracted little interest due to its lack of profitability for those without a claim to any of the money. 
+
+Some analysis takes place through businesses which locate claimants and offer claiming services in exchange for a percentage of the claim. However, this ignores the vast amount of money held in small amounts across many accounts. 
+
+The Australian Securities and Investments Commission is tasked with locating and informing claimants of monies but have expressed lack of resources and overwhelming number of accounts due to law changes.
+
+
+## Approach
+
+Data is available for unclaimed money for 380,671 accounts, going back to the year 1900. Methodology involves data visualisation using Tableau, a drag and drop tool used for visual exploration, as well as R for merging, cleaning, sorting and GLM analysis. 
+
+* The individual parts of the project are the modelling for the amounts (Chen) and the modelling for the number of accounts (Anjali)
+    + (Anjali) Counting accounts means weighting areas by their population to obtain meaningful frequencies
+    + (Anjali) Trialling and testing different models, testing the significance of each variable, and forming conclusions from the frequency table.
+    + (Chen) Amounts requires working out the distribution it has with respect to each variable and using the appropriate link function to create a meaningful model.
+    + (Chen) Finding the right distribution is going to be a challenge due to the amount of distributions covered by GLM and their similarity.
+
+### Extracting Postcodes using regex function
+Data collation has so far involved file conversion, merging the 26 alphabetical files into one, and extracting postcodes using a regex function The regex pattern was sourced using Australia Post postcode area definitions. PO Box and Locked Bag numbers were being included in the regex, therefore all 4 digits numbers after the words PO Box or Locked Bag had to be removed before extracting the data.
+
+Data that was thrown out was defined as a sequence of 4 digits arriving after the word "box" or "bag" regardless of letter case. The regex pattern to define the postcode is a sequence of or-statements, with one statement for each state of territory. The boundaries of each digit are defined between square brackets, with curly brackets indicating the number of time to repeat the last square bracket's contents. A loop was used to write the outcome of the pattern to a new variable:
+
+```{r, eval=FALSE}
+#Duplicate addresses
+address = UM$Owner.Address
+
+#Chuck out PO Boxes
+address = gsub("box [0-9][0-9][0-9][0-9]", "", address, ignore.case = TRUE)
+#Chuck out Locked Bags
+address = gsub("bag [0-9][0-9][0-9][0-9]", "", address, ignore.case = TRUE)
+
+#Pattern for extracting postcodes (line-break for printing only)
+AU <- "(0[289][0-9]{2})|([1345689][0-9]{3})|(2[0-8][0-9]{2})|(290[0-9])|
+       (291[0-4])|(7[0-4][0-9]{2})|(7[8-9][0-9]{2})"
+
+#Identifies AU Postcode
+AUPC <- ifelse(grepl(AU, UM$Owner.Address), 1, 0)
+                
+#Prints AU Postcode
+x = regexpr(AU, address)
+UM$Postcode <-  substring(address, x, x + attr(x, "match.length") - 1)
+print(UM$Postcode)
+
+#Creates new file with newly extracted data
+write.csv(UM, file = "UMPCs.csv")
+
+#Displays addresses according to postcode extraction
+
+#If no postcode found, prints address
+ifelse(UM$Postcode == "", as.character(UM$Owner.Address), "") 
+
+#If postcode found, prints address
+ifelse(UM$Postcode == "", "", as.character(UM$Owner.Address)) 
+```
+
+\newpage
+
+### Classifying Postcodes into categories
+Postcodes needed to be categorised into larger areas to allow sufficient data in each of the categories to facilitate analysis of the data overall. The postcode ranges were sourced online:
+
+Area | Postcode Range
+-----|---------------------------------------------------------------
+Canberra CBD |	2600, 2601, 2610
+Canberra |	2601 - 2609
+Rest of ACT |	2611 - 2620
+Sydney CBD |	1100 - 1299, 2000, 2001, 2007, 2009
+Sydney Metro |	2002 - 2006, 2008, 2010 - 2234
+Riverina Area |	2640 - 2660
+Wollongong |	2500 - 2534
+Newcastle |	2265 - 2333
+Northern Rivers |	2413 - 2484
+Rest of NSW |	2235 - 2412, 2485 - 2999
+Melbourne CBD |	3000 - 3006, 3205, 8000 - 8399
+Melbourne Metro |	3007 - 3204, 3206, 3207
+Rest of VIC |	3208 - 3999
+Brisbane CBD |	4000, 4001, 4003, 9000 - 9015
+Brisbane Metro |	4002, 4004 - 4207, 4300 - 4305, 4500 - 4519
+Gold Coast |	4208 - 4287
+Sunshine Coast |	4550 - 4575
+Rest of QLD |	4288 - 4299, 4306 - 4499, 4520 - 4549, 4576 - 4999
+Adelaide CBD |	5000, 5001, 5004, 5005, 5810, 5839, 5880 - 5889
+Adelaide Metro |	5002, 5003, 5006 - 5199
+Rest of SA |	5200 - 5749, 5825 - 5854
+Perth CBD |	6000, 6001, 6004, 6827, 6830 - 6832, 6837 - 6849
+Perth Metro |	6002, 6003, 6005 - 6199
+Rest of WA |	6200 - 6826, 6828, 6829, 6833 - 6836, 6850 - 6999
+Hobart CBD |	7000, 7001
+Hobart Metro |	7002 - 7099 
+Rest of TAS |	7100 - 7999
+Darwin Metro |	0800 - 0832
+Rest of NT |	0833 - 0899
+
+\newpage
+We classified postcodes by creating a function with a number of if-statements:
+
+```{r, eval=FALSE}
+PC2Area = function(PC) {
+  if(is.na(PC))                                                                                                      
+    return("Unknown")
+  if( PC %in% c(2600, 2601, 2610) )                                                                               
+    return("Canberra CBD")
+  if( PC >= 2601 && PC <= 2609 )                                                                                  
+    return("Canberra Metro")
+  if( PC >= 1100 && PC <= 1299 || PC %in% c(2000, 2001, 2007, 2009) )                                             
+    return("Sydney CBD")
+  if( PC >= 2002 && PC <= 2234 )                                                                                  
+    return("Sydney Metro")
+  if( PC >= 2640 && PC <= 2660 )                                                                                  
+    return("Riverina Area")
+  if( PC >= 2500 && PC <= 2534 )                                                                                  
+    return("Wollongong")
+  if( PC >= 2265 && PC <= 2333 )                                                                                  
+    return("Newcastle")
+  if( PC >= 2413 && PC <= 2484 || PC >= 2460 && PC <= 2465 || PC == 2450 )                                        
+    return("Northern Rivers")
+  if( PC >= 3000 && PC <= 3006 || PC == 3205 || PC >= 8000 && PC <= 8399 )                                        
+    return("Melbourne CBD")
+  if( PC >= 3000 && PC <= 3207 )                                                                                  
+    return("Melbourne Metro")
+  if( PC %in% c(4000, 4001, 4003) || PC >= 9000 && PC <= 9015 )                                                   
+    return("Brisbane CBD")
+  if( PC >= 4000 && PC <= 4207 || PC >= 4300 && PC <= 4305 || PC >= 4500 && PC <= 4519 )                          
+    return("Brisbane Metro")
+  if( PC >= 4208 && PC <= 4287 )                                                                                  
+    return("Gold Coast")
+  if( PC >= 4550 && PC <= 4575 )                                                                                  
+    return("Sunshine Coast")
+  if( PC %in% c(5000, 5001, 5004, 5005, 5810, 5839) || PC >= 5880 && PC <= 5889 )                                 
+    return("Adelaide CBD")
+  if( PC >= 5000 && PC <= 5119 )                                                                                  
+    return("Adelaide Metro")
+  if( PC %in% c(6000, 6001, 6004, 6827) || PC >= 6830 && PC <= 6832 || PC >= 6837 && PC <= 6849 )                 
+    return("Perth CBD")
+  if( PC >= 6000 && PC <= 6199 )                                                                                  
+    return("Perth Metro")
+  if( PC %in% c(7000, 7001) )                                                                                     
+    return("Hobart CBD")
+  if( PC >= 7002 && PC <= 7099 )                                                                                  
+    return("Hobart Metro")
+  if( PC >= 0800 && PC <= 0832 )                                                                                  
+    return("Darwin Metro")
+  if( PC >= 0200 && PC <= 0299 )                                                                                  
+    return("ACT PO Box or LVR")
+  if( PC >= 2600 && PC <= 2620 || PC >= 2900 && PC <= 2920 )                                                      
+    return("Rest of ACT")
+  if( PC >= 1000 && PC <= 1999 )                                                                                  
+    return("NSW PO Box or LVR")
+  if( PC >= 2235 && PC <= 2999 )                                                                                  
+    return("Rest of NSW")
+  if( PC >= 8000 && PC <= 8999 )                                                                                  
+    return("VIC PO Box or LVR")
+  if( PC >= 3208 && PC <= 3999 )                                                                                  
+    return("Rest of VIC")
+  if( PC >= 9000 && PC <= 9999 )                                                                                  
+    return("QLD PO Box or LVR")
+  if( PC >= 4208 && PC <= 4299  || PC >= 4306 && PC <= 4499  || PC >= 4520 && PC <= 4999 )                        
+    return("Rest of QLD")
+  if( PC >= 5800 && PC <= 5999 )                                                                                  
+    return("SA PO Box or LVR")
+  if( PC >= 5000 && PC <= 5799 || PC >= 5825 && PC <= 5854 )                                                      
+    return("Rest of SA")
+  if( PC >= 7800 && PC <= 7999 )                                                                                  
+    return("TAS PO Box or LVR")
+  if( PC >= 7100 && PC <= 7999 )                                                                                  
+    return("Rest of TAS")
+  if( PC >= 6800 && PC <= 6999 )                                                                                  
+    return("WA PO Box or LVR")
+  if( PC >= 6200 && PC <= 6999 )                                                                                  
+    return("Rest of WA")
+  if( PC >= 0900 && PC <= 0999 )                                                                                  
+    return("NT PO Box or LVR")
+  if( PC >= 0833 && PC <= 0899 )                                                                                  
+    return("Rest of NT")
+  return("XXXX")
+}
+
+## To check temporary variable 'Area' holds all results
+Area = sapply(UM$Postcode, PC2Area)
+
+## Shows first few unmatched postcodes
+head(UM$Postcode[Area=="XXXX"])
+
+## Write new column 'Area'
+UM$Area = sapply(UM$Postcode, PC2Area)
+
+write.csv(UM, file = "UM.csv")
+
+```
+
+\newpage
+
+### Categorising Organisations
+
+The 'Organisation' variable contains 4049 factors, meaning 4049 different companies comprise the entire set of 380,671 accounts. The frequency in which each organisation appears in the dataset varies wildly, from 1 to 8837 times. Since we have no way to automatically categorise them, the most efficient method to convert this variable into something that can be analysed,  is to categorise a certain number of the organisations which occur most frequently. To decide on this number, we created lists for come numbers of the top occurring companies and worked out the percentile of accounts each list of companies covered. We made the number of top companies increase in increments of 10.
+```{r, echo=FALSE}
+NumEntries = c(268, 276, 283, 289, 295, 299, 304, 307, 311, 314)
+NumTopOrg = c(70, 80, 90, 100, 110, 120, 130, 140, 150, 160)
+percentage = NumEntries/380
+ORGSUM = data.frame(NumEntries, NumTopOrg, percentage)
+print(ORGSUM)
+```
+Categories for the top 100 companies were collated by hand using company websites and information available on ASX (Australian Share Index). The sum of the number of accounts increased by about 1% for every 10 companies added above 100, also with diminishing return. whereas leading up to 100, the number of accounts was increasing by about 2%. We decided to use top 100 occurring companies because it covers 76% of the data. It is practical for the time we have.
+
+```{r, eval=FALSE}
+#Making a matrix for optimising organisation classification
+NumEntries = c(268, 276, 283, 289, 295, 299, 304, 307, 311, 314)
+NumTopOrg = c(70, 80, 90, 100, 110, 120, 130, 140, 150, 160)
+percentage = NumEntries/380
+ORGSUM = data.frame(NumEntries, NumTopOrg, percentage)
+#Conclusion is top 100 organisations is most efficient way 
+#to categorise large chunk of data for the time we have.
+
+#Prints number of accounts covered by top 100 organistions
+sum(head(sort(table(UM$Organisation.Name), decreasing = TRUE), 100))
+
+#Prints top 100 organistions
+xx = head(sort(table(UM$Organisation.Name), decreasing = TRUE), 100)
+
+write.csv(names(xx), file="Top100.csv")
+```
+
+\newpage
+
+This table is our final result of categorising each of the top 100 most frequently occuring organisations.
+
+Organisation |	Type
+-------------|------------------------------------------------------------------------
+QANTAS AIRWAYS LTD|Airline
+GRAINCORP LTD|Beverage and Food
+GOODMAN FIELDER LTD|Beverage and Food
+COCA-COLA AMATIL LTD|Beverage and Food
+LION NATHAN LTD|Beverage and Food
+USANA AUST PTY LTD|Beverage and Food
+MACQUARIE UNI|Education
+THE UNI OF NSW|Education
+AMP LTD|Financial Services
+AMP LTD/AMP|Financial Services
+WESTPAC BANKING CORP|Financial Services
+VEDA ADVANTAGE LTD|Financial Services
+ING AUST LTD|Financial Services
+AMERICAN EXPRESS AUST LTD|Financial Services
+CAPITAL FIN AUST LTD|Financial Services
+CHALLENGER LTD/CGF|Financial Services
+CWEALTH SECURITIES LTD|Financial Services
+ESANDA FIN CORP LTD|Financial Services
+TOYOTA FIN AUST LTD|Financial Services
+AMP GROUP FIN SERVS LTD|Financial Services
+CHALLENGER LTD|Financial Services
+TAB LTD|Gaming
+TABCORP HLDGS LTD & TABCORP HLDGS LTD|Gaming
+ARISTOCRAT LEISURE LTD|Gaming
+OFFICE OF REAL EST SERVICES|Government
+CITY OF SYDNEY|Government
+PARRAMATTA CITY CNCL|Government
+FAIRFIELD CITY CNCL & WOLLONDILLY SHIRE CNCL|Government
+BORAL LTD|Industrial 
+RINKER GROUP PTY LTD|Industrial 
+OFFSET ALPINE PRINTING GROUP PTY LTD|Industrial 
+ONESTEEL LTD|Industrial 
+CSR LTD|Industrial 
+BRAMBLES INDUSTS LTD|Industrial 
+CSR LIMITED|Industrial 
+INTOLL GROUP|Industrial 
+MBF AUST LTD|Insurance
+INS AUST GROUP|Insurance
+INS AUST GROUP LTD|Insurance
+INS AUST GROUP LTD/IAG|Insurance
+GIO GEN LTD|Insurance
+THE HOSPITALS CONTRIBUTION FUND OF AUST LTD|Insurance
+QBE INS (AUST) LTD|Insurance
+SUNCORP|Insurance
+NIB HEALTH FUNDS|Insurance
+ALLIANZ INS AUST LTD|Insurance
+CWEALTH INS LTD|Insurance
+ING IND FUND|Insurance
+ACE INS LTD|Insurance
+CGU INSURANCE LTD|Insurance
+ECORP LTD|IT
+APN NEWS & MEDIA LTD|Media Company
+CNSLD MEDIA HLDGS LTD|Media Company
+TEN NETWORK HLDGS|Media Company
+FAIRFAX MEDIA LTD|Media Company
+ARRIUM LTD|Mining
+AUN|Mining
+GENWORTH FIN MORTGAGE INS PTY LTD|Mortgage Lending
+GALILEE SOLICITORS|Mortgage Lending
+QBE LENDERS MORTGAGE INSCE LTD|Mortgage Lending
+NATIONAL LENDING SOLUTIONS| Mortgage Lending
+CAMBRIDGE CREDIT CORP LTD|Property Management
+MIRVAC REAL EST INVEST TRUST|Property Management
+GENERAL PROPERTY TRUST|Property Management
+LEND LEASE GROUP/LLC|Property Management
+MIRVAC REAL EST INVEST TRUST (FORMERLY MERIDIAN)|Property Management
+LEND LEASE CORP LTD|Property Management
+WESTFIELD GROUP|Property Management
+WESTFIELD GROUP/WDC|Property Management
+MIRVAC GROUP|Property Management
+INVESTA PROPERTY GROUP|Property Management
+STOCKLAND CORP LTD|Property Management
+WOOLWORTHS LTD|Retailer
+WOOLWORTHS LIMITED|Retailer
+DAVID JONES LIMITED|Retailer
+WOOLWORTHS LTD/WOW|Retailer
+METCASH LTD|Retailer
+AMP SUPER SAVINGS TRUST|SuperFund
+AUST'N ELIGIBLE ROLLOVER FUND|SuperFund
+SUPERTRACE ELIGIBLE ROLLOVER FUND|SuperFund
+AMP ELIGIBLE ROLLOVER FUND|SuperFund
+UNIVERSAL SUPER SCHEME FUND|SuperFund
+STATE SUPER|SuperFund
+BT FUNDS MGMT|SuperFund
+CLUB PLUS SUPER PTY LTD|SuperFund
+COLONIAL MUTUAL LIFE ASSUR LTD|SuperFund
+AON ELIGIBLE ROLLOVER FUND|SuperFund
+LEGAL & GEN SUPERTRACE|SuperFund
+AUST PRIMARY SUPER FUND|SuperFund
+SINGTEL OPTUS|Utility
+ENERGY AUST (NCLE)|Utility
+AUSGRID|Utility
+THE AUSTRALIAN GAS LIGHT COMPANY|Utility
+AGL ENERGY LTD|Utility
+ORIGIN ENERGY LTD|Utility
+ENERGY AUST|Utility
+COUNTRY ENERGY|Utility
+INTEGRAL ENERGY	|Utility
+ORIGIN|Utility
+JACK GREEN (INTNL) PTY LTD|Utility
+
+
+### Adding population data for each area
+We downloaded a file from ABS website (File name 3218.0 Regional Population Growth, Australia) which was released at 11:30 am 31/03/2015.  We used the latest data from 2014, and categorised the postcode into 21 areas.
+We matched all 21 postcode areas to the corresponding ABS data:
+
+PC AREA | ABS AREA | 2014 POP.
+---------|----------|---------------------------
+Canberra CBD | Total Canberra Inner City | 2823 
+Canberra | GREATER CANBERRA | 79183 
+Rest of ACT | REST OF ACT | 306813 
+Sydney CBD | Total Sydney Inner City | 203774 
+Sydney Metro | GREATER SYDNEY | 4636854 
+Riverina Area | Riverina Area | 158144 
+Wollongong | Wollongong | 296845 
+Newcastle | Newcastle | 368131 
+Northern Rivers | Richmond tweed | 242116 
+Rest of NSW | REST OF NSW | 1612608 
+Melbourne CBD | Total Melbourne City | 122190 
+Melbourne Metro  | GREATER MELBOURNE | 4318138 
+Rest of VIC | REST OF VIC | 1401339 
+Brisbane CBD | Total Brisbane Inner | 65542 
+Brisbane Metro | GREATER BRISBANE | 2209018 
+Gold Coast | Total Gold Coast | 560266
+Sunshine Coast | Sunshine Coast | 335874 
+Rest of QLD | REST OF QLD | 1869515 
+Adelaide CBD | Total Adelaide City | 22690 
+Adelaide Metro | GREATER ADELAIDE | 1281941 
+Rest of SA | REST OF SA | 381083 
+Perth CBD | Total Perth City | 108216 
+Perth Metro | GREATER PERTH | 1912987 
+Rest of WA | REST OF WA | 552186 
+Hobart CBD | Total Hobart Inner | 50757 
+Hobart Metro | GREATER HOBART | 168486 
+Rest of TAS | REST OF TAS | 295519 
+Darwin Metro | Total Darwin City | 26281 
+Rest of NT | REST OF NT | 78412 
+
+We  found the individual area population for the CBD of each state and territory in the ABS file and subtracted it from the total population of the corresponding state to uncover the presented population size.
+
+The aim is not to forecast any changes in population based on area, but to use the ratio of population between each area to gain perspective of how much the number of accounts depends on population or other factors. Therefore, population data is only needed for the one year, 2014. If there is time, we can use the ratios from the appropriate year corresponding to the year the account was classified as unclaimed. This would allow us to model the frequency of each area over time.
+
+### Truncating the data
+
+The date in the original data ('Date'), which indicates when the accounts were classfied as unclaimed, was in DD/MM/YYYY format. We only need the year for our model, since the time the account was created ('Year') was in YYYY format only. Below is the code that we used to extract the year from the 'Date' column in the original data, which we then rewrote as the variable 'Classified'.
+
+```{r, eval=FALSE}
+dates = as.Date(UM$Date, format="%d-%b-%y")
+UM$Classified= as.numeric(format(dates,"%Y"))
+write.csv(UM, file = "UM.csv", row.names = FALSE)
+```
+
+Then we plotted the distribution of the years, and found two issues. 
+
+```{r}
+plot(table(UM$Year), main = "Distribution of Years in Unclaimed Money")
+abline(v = 1960, col = "red")
+abline(v = 2008, col = "red")
+```
+
+Firstly, the entries from 1900 and 1901 had very high leverage, squeezing the rest of the model to the far right. We decide to remove them, since there were only 19 entries before 1960, which is an insignificant percentage of the total 385,000 entries. Secondly, there seems to be a sharp drop from 2008, indicating a different distribution to the majority of the data. We can only model one distribution at a time, therefore we chose the one between 1960 and 2008.
+
+Here we omitted any rows which contain factors that are NA, or not applicable and only kept those variables that are useful to our model. UML is the subset that we decided to keep.
+
+```{r, eval=FALSE}
+UM2 = na.omit(UM[,c("Amount", "Year", "Organisation.Type", "Area", "Classified")])
+UML = subset(UM2, Year > 1960 & Year < 2009)
+```
+
+This is the plot of the distribution of years after truncating.
+
+```{r}
+plot(table(UML$Year), main = "Distribution of Years in Truncated Data")
+abline(v = 1960, col = "red")
+abline(v = 2008, col = "red")
+```
+
+We can still see some problems in the later years where there appears to be dipping from the top, which indicates an underlying structure to the data that may not be accounted for with our models.
+
+\newpage
+
+# Statistical Theory
+
+## Concept
+GLM is a combination of a linear model, the link function, the distribution mean, and the dispersion parameter which is not always needed. The main difference is that linear models assume the distribution of errors is normal, whereas GLM can account for mildly non-normal error distributions.GLM transforms the data to make the response and variables linearly related regardless of whether that data within them follows a normal distribution. 
+
+## Formation of Matricies
+
+Equation for each observation of the response variable Y from 1 to n:
+
+\begin{eqnarray*}
+Y_{1}&=&\beta_{0}+\beta_{1}X_{11}+\dots+\beta_{p}X_{1p}+\varepsilon_{1} \\
+Y_{2}&=&\beta_{0}+\beta_{1}X_{21}+\dots+\beta_{p}X_{2p}+\varepsilon_{2} \\
+Y_{3}&=&\beta_{0}+\beta_{1}X_{31}+\dots+\beta_{p}X_{3p}+\varepsilon_{3} \\
+\vdots \\
+Y_{n}&=&\beta_{0}+\beta_{1}X_{n1}+\dots+\beta_{p}X_{np}+\varepsilon_{n} \\
+\end{eqnarray*}
+
+Turn these simultaneous equations into matrix form:
+
+\[
+\begin{bmatrix}
+    Y_{1} \\
+    Y_{2} \\
+    Y_{3} \\
+    \vdots\\
+    Y_{n} \\     
+\end{bmatrix}
+=
+\begin{bmatrix}
+    1 & X_{11} & \dots & \dots & \dots & X_{1p} \\
+    1 & X_{21} & \dots & \dots & \dots & X_{2p} \\
+    1 & X_{31} & \dots & \dots & \dots & X_{3p} \\
+    \vdots & \vdots & \vdots & \vdots & \ddots & \vdots \\
+    1 & X_{n1} & \dots & \dots & \dots & X_{np} \\
+\end{bmatrix}
+\begin{bmatrix}
+    \beta_{0} \\
+    \beta_{1} \\
+    \beta_{2} \\
+    \vdots \\
+    \beta_{p} \\
+\end{bmatrix}
++
+\begin{bmatrix}
+    \varepsilon_{1} \\
+    \varepsilon_{2} \\
+    \varepsilon_{3} \\
+    \vdots \\
+    \varepsilon_{n} \\
+\end{bmatrix}
+\]
+
+Turn these matrix into a single equation:
+  $$ Y = X\beta + \varepsilon $$
+
+Here, Y is the matrix of each observation of the response variable, X is the matrix of each of the predictor variables which explain the response variable, $\beta$ is the matrix of the coefficients which define the contribution of each predictor variable and $\varepsilon$ is the matrix of the difference between the observed data and predicted model.
+
+Multiplying together the first column of the $X$ matrix, and the first row of the $\beta$ matrix, gives the term $\beta_{0}$. Therefore, the equation can be rewritten as:
+
+$$Y_{i} = \beta_{0} + \sum_{i=1}^n \beta_{i} x_{i} + \epsilon_{i}$$
+
+## Estimating $\beta_{i}$ when $y$ is Normally Distributed
+
+Least Squares is one criterion used for choosing the $\hat\beta$ which gives the most chance of seeing the data we currently have, in other words, least squares determines the best fitting $\hat\beta$ for the dataset. To explain the method of least squares, we will first start with a simple linear model:
+
+This is the formula for the simple linear model, simple because it involves only powers of 1:
+$$Y_{i} = \beta_{0} + \beta_{1} x_{i} + \epsilon_{i}$$
+
+To maximise the probability of $\beta$, we use:
+$$\operatorname*{arg\,max}_\beta  \prod_{i=1}^n  f(y_i;\beta)$$
+$f(y_{i};\beta)$ is a function including $y_{i}$ and its corresponding $\beta$ value. $\operatorname*{arg\,max}$ is a function for choosing the $\hat\beta$ which, when substituted, gives the best chance of seeing the data we are currently have. The function $f$ is the probability density function, which is dependent of the distribution we are using. For the normal distribution:
+
+$$f(y) = \frac{1}{\sqrt{2\pi}\sigma}exp\frac{-({y-x^{t}\beta})^2}{2{\sigma}^2}$$
+
+The maximum likelihood function takes the product of each $f(y_i;\beta)$, to gain an overall probability density function for the $\beta$ matrix. Due to this multipicative property, we can transform our maximum likelihood function from a product of $f$'s into a sum of log-transformed $f$'s. Therefore, the maximum likelihood function can be written as:
+$$\operatorname*{arg\,max}_\beta \sum_{i=1}^n  Log  f(y_{i};\beta)$$
+
+Substituting the probabilty density function for $f(y_{i};\beta)$:
+
+\begin{eqnarray*}
+\sum_{i=1}^n  Log  f(y_{i};\beta) &=& \sum_{i=1}^n Log  [\frac{1}{\sqrt{2\pi}\sigma}exp\frac{-({y_{i}-x^{t}\beta})^2}{2{\sigma}^2}] \\
+ &=& \sum_{i=1}^n  [Log(1) - Log(\sqrt{2\pi}\sigma) - \frac{1}{2\sigma^2} (Y_{i} - X_{i}\beta )^2] \\
+ &=& \sum_{i=1}^n  [0 - Log(\sqrt{2\pi}\sigma) - \frac{1}{2\sigma^2} (Y_{i} - X_{i}\beta )^2] \\
+ &=&  -nLog(\sqrt{2\pi}\sigma) - \frac{1}{2\sigma^2}\sum_{i=1}^n  (Y_{i} - X_{i}\beta )^2
+\end{eqnarray*}
+
+Note that there is a negative sign infront $\frac{1}{2\sigma^2}\sum_{i=1}^n  (Y_{i} - X_{i}\beta )^2$. Therefore maximising the likelihood of $\beta$, maximising the whole equation above, can be accomplished by minimising the $\sum_{i=1}^n  (Y_{i} - X_{i}\beta )^2$, which is the least squares formula.
+
+## The Generalised Linear Model
+
+The linear model makes the assumption that $Y$ is of normal distribution with the two parameters below:
+$$Y \sim N(x^{t}\beta , \sigma^{2})$$
+Here, $\mu=x^{t}\beta$.
+
+GLM relaxes these assumptions to wider parameters, and any distribution in the exponential family, which is discussed in the next section:
+$$Y \sim \exp family(\mu, \theta)$$
+Here, $\mu=g^{-1}(x^{t}\beta)$, meaning $x^{t}\beta$ is not directly a parameter, but instead some transformation $g$ can be made to the parameter $\mu$ to obtain $x^{t}\beta$. This $g$ is known as the link function.
+Also, when $\theta=g(\mu)$, $g$ is the canonical link function.
+
+In terms of our project, the linear model is applicable to analysing the amounts in each account, since amounts are non-binary, non-count data which is possibly normal. The linear model is not applicable to analysing the number of counts, since that is count data, involving only discrete numbers and no negatives. Therefore, generalised linear models are required for this project.
+
+GLM also contains a relationship between the variance of $Y$ and the variance of the mean $\mu$, where the dispersion parameter $\phi$ is a constant:
+$$Var(Y_{i}) = \phi V(\mu_{i})$$
+
+## Exponential family
+GLM handles distributions that exist in the exponential family. In this way, GLM can be used to capture mildly non-linear data structures.The exponential family of statistical models that GLM unifies takes the following general form:
+
+$$ f(y | \theta,\phi)=exp(\frac{y\theta-b(\theta)}{a(\phi)}+c(y,\phi)) $$
+
+$\theta$ and $\phi$ are some parameters, different for each distribution. 'a', 'b' and 'c' are functions that are also distinct for each member of the exponential family, and can therefore be used to specify the member of the exponential family.
+
+The exponential family distribution has mean and variance:
+
+$$ \mathbf{E}(Y)=\mu=b'(\theta) $$
+$$ \mathbf{Var}(Y)=b"(\theta)a(\phi) $$
+
+The Binomial and Poisson distributions are useful examples of the exponential distribution family that may be relevant to our project. 
+
+These are the major distributions and their canonical link functions. 
+
+Family|C.Link|Variance Function
+:-------:|:------:|:-------------------------------------:
+$Normal$|$\mu$|$1$
+$Poisson$|$\log(\mu)$|$\mu$
+$Binomial$|$\log(\frac{\mu}{1-\mu})$|$\frac{\mu}{1-\mu}$
+$Gamma$|$\frac{1}{\mu}$|$\mu^2$
+
+Canonical links lead to desirable statistical properties of the generalised linear model, and hence tend to be used by default. However there is no a priori reason why this link should give the best fit when modelling. How these canonical link functions are derived is shown for two non-normal distributions from the exponential family in the next two sections.
+
+\newpage
+
+## Binomial Distribution
+For a binomial distribution, the canonical link function is derived as follows:
+
+\begin{eqnarray*}
+f(y | \theta,\phi)=\binom{n}{y}\mu^y(1-\mu)^{n-y}
+&=&exp(\log\binom{n}{y}\mu^y(1-\mu)^{n-y})) \\
+&=&exp(\log\binom{n}{y}+\log(\mu^y)+\log((1-\mu)^{n-y})) \\
+&=&exp(\log\binom{n}{y}+y\log(\mu)+(n-y)\log(1-\mu)) \\
+&=&exp(\log\binom{n}{y}+y\log(\mu)+n\log(1-\mu)-y\log(1-\mu)) \\
+&=&exp(\log\binom{n}{y}+y\log(\frac{\mu}{1-\mu})+n\log(1-\mu))
+\end{eqnarray*}
+
+Therefore, the link function is 
+$$ \theta=\log(\frac{\mu}{(1-\mu)}) $$
+
+Note: In statistics, $\log$ is base $e$ and $\mu$ is the mean.
+
+For binomial distribution in GLM, $\mathbf{p}$ is the probability of success. We define the response as odds rather than count.  
+
+In the binomial distribution, odds are sometimes a better scale than probability to represent chance.
+A model might indicate some areas are twice as likely than others to have over 100 accounts. But it cannot simply double the probability value (e.g.60% become 120%) since this would require the existence of probabilities more than 100%. Rather, it is the odds that are doubling, from 2:1 odds to 4:1 odds. 
+
+$$ Odds = \frac{Proportion Of Successes}{Proportion Of Failures} = \frac{p}{1-p} $$ 
+$$ Odds = \frac{p}{1-p} $$
+
+The prooportion of successes $p$ is the mean $\mu$ in the general binomial model. This link function allows the mean $\mu$  to be converted into odds. To ensure $0\leq\mathbf{p}\leq1$ we use $\log(\frac{\mu}{(1-\mu)})$.
+
+\newpage
+
+## Poisson Distribution
+For a poisson distribution, the link function is derived as follows: 
+
+\begin{eqnarray*}
+f(y | \theta,\phi)=\frac{e^{-\mu}\mu^y}{y!}
+&=&exp(\log(\frac{e^{-\mu}\mu^y}{y!})) \\
+&=&exp(\log(e^{-\mu})+\log(\mu^y)-\log(y!)) \\
+&=&exp(-\mu+\log(\mu^y)-\log(y!)) \\
+&=&exp(\log(\mu^y)-\mu-\log(y!)) \\
+&=&exp(y\log(\mu)-\mu-\log(y!))
+\end{eqnarray*}
+
+Therefore, the link function is 
+$$\theta=\log(\mu) $$
+
+Note: In statistics, $\log$ is base $e$ and $\mu$ is the mean. 
+
+This link function is the most natural choice for the Poisson distribution, since the mean $\mu$ for Poisson is always above zero. The obvious choice is $\mu=e^{X\beta}$. Writing the equation for the link function as a function of the mean $\mu$ gives $X\beta=\log(\mu)$ to make certain that the mean $\mu$ is positive. This will have the effect of making addition within $X$ affect $\mu$ multiplicatively.
+
+If a model predicted that a decrease of 1000 in population for an area would lead to 10 fewer accounts, this model would not generalise well in areas with <10 accounts. For example, if an area with <10 accounts decreased in population by 1000, it would then have <0 accounts. This is not possible, and realistically, this implies the relationship between population and number of accounts is a ratio rather than a linear relationship. This is where the $\log()$ link function is useful. An increase in 1000 population would lead to a doubling of the number of accounts, and population decrease would lead to a fraction of the number of accounts. This creates an exponential-response model, one of which, is the Poisson distribution model.
+
+It is important to note that the link functions mentioned are the canonical link functions, and are not the only option, or always the best option. The canonical link is the most obvious choice, for the corresponding distribution, mathematically and computationally. Ultimately, the link function used to create our final model will be chosen based on the best fit with our data.
+
+There is no least squares for the Poisson distribution, but there is a maximum likelihood, shown below.
+
+## Maximum Likelihood for the Poisson Distribution
+
+As far as maximum likelihood is concerned, only the mean and variance functions are relevant to estimating $\hat\beta$.
+
+Suppose $Y_{i}$ follows a Poisson distribution:
+$$Y_{i} \sim Possion (\mu_{i})$$
+
+As above, 
+\begin{eqnarray*}
+\mu &=& E(y) \\
+&=& g^{-1} (X\beta)
+\end{eqnarray*}
+
+The probability density function of a Poisson distribution is:
+$$f(y) = \exp^{-\mu}  \frac{\mu^{y}}{y!}$$
+
+The maximum likelihood equation in this case would be:
+$$\operatorname*{arg\,max}_\beta \prod_{i=1}^n  exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i} !}$$
+
+We then log-transform $f$ to turn the formula into a sum, instead of a product:
+\begin{eqnarray*}
+\prod_{i=1}^n  \exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i} !} &=& \sum_{i=1}^n \log [\exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i}!}] \\
+&=& \sum_{i=1}^n [-\mu_{i} + y_{i}\log(\mu_{i}) - \log(y_{i}!)]
+\end{eqnarray*}
+
+If we then replace $\mu$  with $g^{-1} (X\beta)$:
+$$\sum_{i=1}^n [-g^{-1} (X\beta) + y_{i}\log(g^{-1} (X\beta)) - \log(y_{i}!)] $$
+
+Since $\log(y_{i})$ is a constant, it does not need to be estimated. So our maximum likelihood formula becomes:
+$$\operatorname*{arg\,max}_\beta  \sum_{i=1}^n [-g^{-1} (X\beta) + Y_{i}Log(g^{-1} (X\beta))] $$
+
+This will be estimation using a method called the iteratively reweighted least squares method (IRLS), which is iteratively calculated by R until it converges, if the model is successful.
+
+#Analysis
+
+## Analysing the number of accounts with unclaimed money (Anjali)
+
+### Tabulating the data
+
+The first problem with analysing the number of accounts is that there is no response variable for this in the data in its current form. To analyse the counts, and which variables correlate with count, we first create a table of frequencies. This table was then sorted by the frequency variable (Freq) in descending order, to find the intersection of categories that most occur in the data, thereby showing which variables correlate with unclaimed money.
+
+```{r}
+CountsUM = as.data.frame(xtabs(~ Area + Organisation.Type + Year + Classified + Description, data=UM))
+
+SortedCounts = CountsUM[order(-CountsUM$Freq), ]
+```
+
+This table shows the frequency of each intersection of the 5 variables, as shown below:
+
+```{r, echo=FALSE}
+names(SortedCounts)[names(SortedCounts)=="Organisation.Type"] <- "Type"
+names(SortedCounts)[names(SortedCounts)=="Classified"] <- "Class."
+print(SortedCounts[1:30,], row.name=FALSE)
+```
+
+From this table, it can be seen that unpresented cheques from insurance organisations in Sydney Metro, opened in 2008, and classified as unclaimed in 2014, have the highest number of accounts in the data, 7411 accounts, almost double the amount of the second most frequent category. Insurance organisations in Sydney Metro make up 6 of the top 10 categories. 
+
+Aside from metro areas, the rest of Queensland makes up a large chunk of accounts in unpresented cheques issued in 2008, probably due to a series of storms and floods which occured in the area at that time. These were classified in 2014 as unclaimed.
+
+One mysterious category, that does not fit the general trend of insurance and utility in metro areas, is the one with unknown area, involving deposits from the government that were issued and classified in 1993. This could be a case of mistaken data entry, as there is not enough time within one year to classify a deposit as unclaimed, according to the law. Further investigation of the original data in this category reveals that government organisation issuing these deposits was the Office of Real Estate Services, on the 20th of January 1993, and that no postcodes were recorded, so the area could not be classified in those cases.
+
+On the 29th of October, 1999, Energy Australia issues 1999 deposits, for which the postcodes are unknown, which were classified as unclaimed in 1999, also. The organisation name is listed as "Energy Aust (NCLE)" which indicated that these may be deposits for the Newcastle International Sports Centre sponsored by Energy Australia in 2001, for which some funding has yet to be claimed. 
+
+These kinds of chunks in the data reveal an underlying structure which is not continuous, and probably not suited to GLMs, but at this point, it is too late to try something else. 
+
+### Modelling with Poisson
+
+So, we make the 'Year' and 'Classified' variables continuous, to keep the model at a workable size. If each year was treated as a factor, independent of the other years, that could solve part of the problems with underlying structures in our data, but that requires much more RAM than we have access to at the moment. 
+
+```{r}
+#Using a slightly different counts table to model:
+Counts = as.data.frame(xtabs(~Area+Organisation.Type+Year+Classified, data=UML))
+
+Counts$Year = as.numeric(Counts$Year)
+Counts$Classified = as.numeric(Counts$Classified)
+```
+
+One other thing to be dealt with when modelling is that, at a level of factors, we now have the opposite problem than we had before. Before, in the original data, we had no zero values, since we had no data on those accounts which never contained any unclaimed money. Now, in the frequency table, we have an abudance of zeroes, in those intersections of categories which contain no accounts. We no longer have a need for a zero-truncated Poisson model, and we can use the Poisson model as it is usually used.
+
+```{r}
+PoissonAccounts <- glm(Freq ~ Area+Organisation.Type+Year+Classified, 
+                       family = poisson(link = "log"), data = Counts)
+```
+
+```{r}
+qqnorm(residuals(PoissonAccounts), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with No Polynomial Transform")
+qqline(residuals(PoissonAccounts))
+```
+
+A curvature can be seen in the fit of this model, meaning something significant is affecting the original data that we have not taken into account in this model. The curve looks like it is fanning out as the year increases, showing overdispersion. The downward curve at the bottom of the graph can be attributed to this fanning out also, as it fans out until it hits the minimum a residual can be, which is the negative of the mean.
+
+```{r}
+plot(residuals(PoissonAccounts) ~ Counts$Year, pch=16, ylab="Residuals", 
+     xlab="Fitted Means",  main = "Trend in Residuals")
+```
+
+This shows that the curve increases with the variable 'Year', indicating that there may be a polynomial relationship between year and the data.
+
+Here are two Poisson models, with different polynomial transformations. Each contains the same 4 variables, and a $\log$ link. The difference is that each uses a different power in the polynomial transformation. 
+
+```{r}
+PoissonAccounts.poly2 <- glm(Freq ~ Area+Organisation.Type+poly(Year,2)+poly(Classified,2), 
+                             family = poisson(link = "log"), data = Counts)
+
+PoissonAccounts.poly3 <- glm(Freq ~ Area+Organisation.Type+poly(Year,3)+poly(Classified,3), 
+                             family = poisson(link = "log"), data = Counts)
+```
+
+We must plot the residuals of each model for diagnostics.
+
+```{r}
+qqnorm(residuals(PoissonAccounts.poly2), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with Poly 2 Transform")
+qqline(residuals(PoissonAccounts.poly2))
+
+qqnorm(residuals(PoissonAccounts.poly3), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with Poly 3 Transform")
+qqline(residuals(PoissonAccounts.poly3))
+```
+
+Although these graphs look the same, the polynomial transformation of power 3 is a slightly better fit, both waver at the ends, showing a curvature to the graph that has not been accounted for, either in the variables affecting the orginial data, or in the model itself. Many other kinds of models were tried, including the negative binomial, normal, inverse gaussian, and Anscombe transformations to try to find a fit by chance. Poisson is still the most successful, and an ANOVA will show that despite the bad fit, the variables we have considered are all highly significant.
+
+```{r}
+anova(PoissonAccounts.poly3, test = "LRT")
+```
+
+The last method we will try to take into account the overdispersion in this model, is a quasipoisson model. This model uses a parameter for the dispersion, a parameter which does not exist in the Poisson distribution, and has no mathematical backing for doing so. Its purpose is to fit models with these previously discussed problems.
+
+```{r}
+PoissonAccounts.6 <- glm(Freq ~ Area+Organisation.Type+Year+Classified, 
+                         family = quasipoisson(link = "log"), data = Counts)
+
+anova(PoissonAccounts.6, test="F")
+
+qqnorm(residuals(PoissonAccounts.6), pch=16, ylab="Residuals", xlab = "Amount", 
+       main = "PoissonAccounts")
+plot(residuals(PoissonAccounts.6) ~ fitted(PoissonAccounts.6), pch=16, ylab="Residuals", 
+     xlab="Fitted Means")
+plot(residuals(PoissonAccounts.6) ~ Counts$Year, pch=16, ylab="Residuals", xlab="Fitted Means")
+```
+
+## Analysing the amount within the accounts (Chen)
+
+It is logical to use the $\log$ link function for all the general linear model, since a log link function will guarantee a postive mean result all the time. When analysing the amount of money, there can only be positive results. First, I fitted a GLM with a Gaussian distribution shown below:
+
+```{r}
+## GLM Gaussian fits with log link function
+GaussianAmount = glm(Amount ~ Year + Organisation.Type + Area + Classified, family = gaussian(link = "log"), data=UML)
+qqnorm(residuals(GaussianAmount), pch=16, ylab="GaussianResiduals", xlab = "Amount")
+qqline(residuals(GaussianAmount))
+plot(residuals(GaussianAmount) ~ fitted(GaussianAmount), pch=16, ylab="GaussianResiduals", xlab="Fitted Means")
+```
+
+GLM transforms the data to make the response and variables linearly related regardless of whether the data within them follows a normal distribution. Hence the residual should look normally distributed regradless of its distribution. However it is not the case for this Gaussian fit, qqnormal plot of the Gaussian fit shows heavy skewing to the right and confirm it is not normally distributed. 
+
+Also there is  another major problem for this fit. For a valid regression analysis,you need to have a constant variance of the error terms, and they must have a mean of zero. The residual of Gaussian fit appear to decrease across the fitted values, so that indicate the variance in the error terms is not constant.
+
+The conclusion is that the Gaussian distribution is not a good fit, next i will try the Gamma distribution.
+
+At first the Gamma distribution did not converge. The reason behind the model not converging is that something significant is affecting the original data that we have not taken into account in this model, that is the overdispersion of residuals as year increases.
+
+```{r} 
+plot(residuals(GaussianAmount) ~ UML$Year, pch=16, ylab="GaussianResiduals", xlab="Fitted Means",  main = "Trend in Residuals")
+```
+
+This plot shows that the curve increases with the variable 'Year', indicating that there may be a polynomial relationship between year and the data. Therefore i fit the Gamma model with polynomial transformed variable poly(Year,2) and poly(Classified,2).The number two is the power of polynomial transformation.
+
+```{r}
+## GLM Gamma fits with log link function
+GammaAmount = glm(Amount ~ poly(Year,2) + Organisation.Type + Area + poly(Classified,2) , family = Gamma(link = "log"), data=UML)
+qqnorm(residuals(GammaAmount), pch=16, ylab="GammaResiduals", xlab = "Amount")
+qqline(residuals(GammaAmount))
+plot(residuals(GammaAmount) ~ fitted(GammaAmount), pch=16, ylab="GammaResiduals", xlab="Fitted Means")
+```
+
+however the result was about the same as the Gaussian distribution. It's residual was not normaly distributed. It's variance was not constant.
+
+So the Gamma distribution did not work either lets try a new distribution we have never heared of the Tweedis distribution.
+
+The Tweedis family of distibutions has defined variance function but with no clsoed form proberbility density function(except in special cases). It use in GLM's  requies selection of two parametres. A Power in link function and a power in variance function.
+
+The Link function for Tweedies distribution:
+$$\mu^q = X\beta$$
+By convention the $\log$ link is power of zero in the Tweedies link function
+The The variance function for Tweedies distribution:
+$$Var(Y) = \mu^p$$
+
+```{r}
+### you require the statmod package to run the Tweedie GLM
+require(statmod) 
+TweedieAmount = glm(Amount ~ poly(Year,2) + Organisation.Type + Area + Classified, family=tweedie(link.power=0, var.power=2.7), data=UML)
+qqnorm(residuals(TweedieAmount), pch=16, ylab="TweedieResiduals", xlab = "Amount", main="Tweedie")
+qqline(residuals(TweedieAmount))
+plot(residuals(TweedieAmount) ~ fitted(TweedieAmount), pch=16, ylab="TweedieResiduals", xlab="Fitted Means")
+```
+Again it's residual is not normally distributed. it have non-constant variance. Hence Tweedie distribution is not a valid fit. After three attempt with GLM it turn out that GLM is not suited for this data. when everything fails, i fall back to simple linear model with polynomial transformed variable poly(Year,2) and poly(Classified,2) due to residual has a polynomiral relation ship to amount.
+
+```{r}
+NormalAmount = lm(Amount ~ poly(Year,2) + Organisation.Type + Area + poly(Classified,2), data = UML)
+qqnorm(residuals(NormalAmount), pch=16, ylab="NormalAmountResiduals", xlab = "Amount")
+qqline(residuals(NormalAmount))
+plot(residuals(NormalAmount) ~ fitted(NormalAmount), pch=16, ylab="NormalAmountResiduals", xlab="Fitted Means")
+```
+The residual of this model is still not normally distributed. The variance still not constant but has improved compare to GLM model.
+
+why did i choose to use log transformed linear model?
+```{r}
+LogNormalAmount = lm(log(Amount) ~ poly(Year,4) + Organisation.Type + Area + poly(Classified,4), data = UML)
+qqnorm(residuals(LogNormalAmount), pch=16, ylab="LogNormalAmountResiduals", xlab = "Amount")
+qqline(residuals(LogNormalAmount))
+plot(residuals(LogNormalAmount) ~ fitted(LogNormalAmount), pch=16, ylab="LogNormalAmountResiduals", xlab="Fitted Means")
+```
+
+
+```{r}
+summary(LogNormalAmount)
+```
+summary says AreaSydney CBD is not significant? Also Adjusted R-squared:  0.1538 suggest this model only explain 15% of the errors in the model which is very low, you want between 50%-80% for complex real world data. Hence you can not use this model to run prediction.
+```{r}
+anova(LogNormalAmount, test = "LRT")
+```
+anova says all variable are significant.
+
+\newpage
+
+# References
+
+Apps08.osr.nsw.gov.au,. 'NSW Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+(https://www.apps08.osr.nsw.gov.au/erevenue/ucm/ucm_list.php)
+
+Faraway, Julian James. Extending Linear Models With R. Boca Raton, Fla.: Chapman & Hall/CRC, 2006. Print.
+
+Osr.nsw.gov.au,. 'About Unclaimed Money | Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+
+Abs.gov.au,. '3218.0 -  Regional Population Growth, Australia, 2013-14'. N.p., 2015. Web. 12 Aug. 2015.

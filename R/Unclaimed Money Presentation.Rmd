@@ -1,0 +1,410 @@
+---
+title: "Modelling $191,792,091.00 in Unclaimed Money"
+author: "Anjali Sharma, Chen Zhong, Supervisor Glenn Stone"
+date: '`r Sys.Date()`'
+output: beamer_presentation
+---
+## Introduction (Anjali)
+
+* Unclaimed money is money held in an account that has been inactive for some time. 
+
+* Reasons for choosing this topic:
+    + No one has analysed this data before.
+    + Original idea
+    + Challenge
+    + No copyright
+
+## Introduction (Anjali)
+
+* [Who loses track of money?](https://www.moneysmart.gov.au/tools-and-resources/find-unclaimed-money/unclaimed-money-search)
+![Apic](1.png)
+    + E.g. Universities
+    + Categories: "University of Western Sydney" vs. "UWS"
+
+* We wanted to find out what factors contribute most to unclaimed money
+    + Frequency of accounts
+    + Amounts in accounts
+
+## Approach (Chen)
+
+* We took data from the NSW Office of State Revenue.
+
+* The original data contained these variables:
+    + Owner Name
+    + Owner Address
+    + Amount
+    + Description
+    + Year (Created)
+    + Date (Classified)
+    + Organisation Name
+
+## Approach (Anjali)
+
+* Of these, we needed to create general categories within these variables to analyse frequencies:
+    + Owner Address --> Postcode --> Area
+    + Amount
+    + Description (already categorised)
+    + Year
+    + Date(YEAR) --> 'Classified'
+    + Organisation Name --> Organisation Type
+
+## Extracting Postcodes (Anjali)
+
+* Problem: How to identify postcode in address?
+    + 4 consecutive digits
+    + Excluding PO BOX & Locked Bag numbers
+
+```{r, eval=FALSE}
+(0[289][0-9]{2})|([1345689][0-9]{3})|(2[0-8][0-9]{2})|
+(290[0-9])|(291[0-4])|(7[0-4][0-9]{2})|(7[8-9][0-9]{2})
+```
+
+## Categorising Areas (Chen)
+We match the postcode extracted from the original data to the postcode ranges sourced online to produce the table below:
+
+Area | Postcode Range
+-----|---------------------------------------------------------------
+Canberra CBD |	2600, 2601, 2610
+Canberra |	2601 - 2609
+Rest of ACT |	2611 - 2620
+Sydney CBD |	1100 - 1299, 2000, 2001, 2007, 2009
+Sydney Metro |	2002 - 2006, 2008, 2010 - 2234
+Riverina Area |	2640 - 2660
+Wollongong |	2500 - 2534
+Newcastle |	2265 - 2333
+Northern Rivers |	2413 - 2484
+Rest of NSW |	2235 - 2412, 2485 - 2999
+Melbourne CBD |	3000 - 3006, 3205, 8000 - 8399
+Melbourne Metro |	3007 - 3204, 3206, 3207
+Rest of VIC |	3208 - 3999
+Brisbane CBD |	4000, 4001, 4003, 9000 - 9015
+Brisbane Metro |	4002, 4004 - 4207, 4300 - 4305, 4500 - 4519
+Gold Coast |	4208 - 4287
+Sunshine Coast |	4550 - 4575
+Rest of QLD |	4288 - 4299, 4306 - 4499, 4520 - 4549, 4576 - 4999
+Adelaide CBD |	5000, 5001, 5004, 5005, 5810, 5839, 5880 - 5889
+Adelaide Metro |	5002, 5003, 5006 - 5199
+Rest of SA |	5200 - 5749, 5825 - 5854
+Perth CBD |	6000, 6001, 6004, 6827, 6830 - 6832, 6837 - 6849
+Perth Metro |	6002, 6003, 6005 - 6199
+Rest of WA |	6200 - 6826, 6828, 6829, 6833 - 6836, 6850 - 6999
+Hobart CBD |	7000, 7001
+Hobart Metro |	7002 - 7099 
+Rest of TAS |	7100 - 7999
+Darwin Metro |	0800 - 0832
+Rest of NT |	0833 - 0899
+
+## Categorising Organisations (Chen)
+
+* Manually categorised top 100 companies into 16 categories
+
+* Two methods to determine the nature of business
+    + from the official website of the organisation
+    + from ASX website, the organisation's page (from the 'Details' tab)
+    
+##
+
+Organisation |	Type
+-------------|------------------------------------------------------------------------
+QANTAS AIRWAYS LTD|Airline
+GRAINCORP LTD|Beverage and Food
+MACQUARIE UNI|Education
+AMP LTD|Financial Services
+TAB LTD|Gaming
+CITY OF SYDNEY|Government
+BORAL LTD|Industrial 
+MBF AUST LTD|Insurance
+ECORP LTD|IT
+FAIRFAX MEDIA LTD|Media Company
+AUN|Mining
+GALILEE SOLICITORS|Mortgage Lending
+LEND LEASE GROUP/LLC|Property Management
+WOOLWORTHS LTD|Retailer
+AMP SUPER SAVINGS TRUST|SuperFund
+ENERGY AUST (NCLE)|Utility
+
+
+## Truncating the Data (Anjali)
+
+![Apic](Distribution of Years in Unclaimed Money.png)
+
+## The Mathematics! (Anjali)
+
+* Linear models assume:
+    1. A linear relationship between the mean of the response and the predictors.
+    2. A Normal distribution of the response around this mean. 
+
+* Generalised linear models (GLM) generalise this in two ways:
+    1. The mean of the response is related to the linear combination of the linear predictors via the link-function.
+    2. The distribution of the response around this mean can be any distribution from the exponential family.
+
+## The Symbols! (Anjali)
+
+\begin{eqnarray*}
+Y_{1}&=&\beta_{0}+\beta_{1}X_{11}+\dots+\beta_{p}X_{1p}+\varepsilon_{1} \\
+Y_{2}&=&\beta_{0}+\beta_{1}X_{21}+\dots+\beta_{p}X_{2p}+\varepsilon_{2} \\
+Y_{3}&=&\beta_{0}+\beta_{1}X_{31}+\dots+\beta_{p}X_{3p}+\varepsilon_{3} \\
+\vdots \\
+Y_{n}&=&\beta_{0}+\beta_{1}X_{n1}+\dots+\beta_{p}X_{np}+\varepsilon_{n} \\
+\end{eqnarray*}
+
+## The Symbols! (Anjali)
+
+\[
+\begin{bmatrix}
+    Y_{1} \\
+    Y_{2} \\
+    Y_{3} \\
+    \vdots\\
+    Y_{n} \\     
+\end{bmatrix}
+=
+\begin{bmatrix}
+    1 & X_{11} & \dots & \dots & \dots & X_{1p} \\
+    1 & X_{21} & \dots & \dots & \dots & X_{2p} \\
+    1 & X_{31} & \dots & \dots & \dots & X_{3p} \\
+    \vdots & \vdots & \vdots & \vdots & \ddots & \vdots \\
+    1 & X_{n1} & \dots & \dots & \dots & X_{np} \\
+\end{bmatrix}
+\begin{bmatrix}
+    \beta_{0} \\
+    \beta_{1} \\
+    \beta_{2} \\
+    \vdots \\
+    \beta_{p} \\
+\end{bmatrix}
++
+\begin{bmatrix}
+    \varepsilon_{1} \\
+    \varepsilon_{2} \\
+    \varepsilon_{3} \\
+    \vdots \\
+    \varepsilon_{n} \\
+\end{bmatrix}
+\]
+
+Turn these matrices into a single equation:
+  $$ Y = X\beta + \varepsilon $$
+
+## Estimating $\beta$ for Normal Distribution (Chen)
+
+* We commonly use least squares for estimating the $\hat\beta$ 
+
+* Least squares can be seen as the maximum likelihood method when the data is normally distributed
+
+* We choose $\hat\beta$ to maximise the "chance" of getting the data we actually observed (response).
+
+    + simple linear regression as example:
+$$Y = \beta_{0} + \beta_{1} x + \epsilon$$
+
+Given a sample $(x_{i}, y_{i}), i = 1, 2, ..., n$, the likelihood of $\beta$ is defined as:
+$$\mathcal{L}(\beta) = \prod_{i=1}^n  f(y_i;\beta)$$
+
+The function $f$ is the probability density function of $y$, and depends on $\beta$ and $x$. For the Normal distribution:
+
+$$f(y) = \frac{1}{\sqrt{2\pi}\sigma}\exp\frac{-({y-\beta_{0}-\beta_{1}x})^2}{2{\sigma}^2}$$
+
+##
+The maximum likelihood method chooses $\hat\beta$ to maximise $\mathcal{L}(\beta)$. It is easy to work with the log-likelihood which has the same maxima, since $\log$ is a monotone function.
+$$\mathcal{L}(\beta) = \sum_{i=1}^n  \log  f(y_{i};\beta)$$
+
+Substituting the Normal probability density function for $f(y_{i};\beta)$:
+
+\begin{eqnarray*}
+\mathcal{L}(\beta) = \sum_{i=1}^n  \log  f(y_{i};\beta) &=& \sum_{i=1}^n \log  [\frac{1}{\sqrt{2\pi}\sigma}\exp\frac{-({y_{i}-\beta_{0}-\beta_{1}x})^2}{2{\sigma}^2}] \\
+ &=&  -n\log(\sqrt{2\pi}\sigma) - \frac{1}{2\sigma^2}\sum_{i=1}^n  (y_{i} - \beta_{0}-\beta_{1}x )^2
+\end{eqnarray*}
+
+Note that there is a negative sign in front of $\frac{1}{2\sigma^2}\sum_{i=1}^n  (y_{i} - \beta_{0}-\beta_{1}x )^2$. Therefore maximising the likelihood of $\beta$ can be accomplished by minimising $\sum_{i=1}^n  (y_{i} - \beta_{0}-\beta_{1}x )^2$.
+
+## The Generalised Linear Model (Chen)
+* The linear model makes the assumption that $Y$ is of Normal distribution with the two parameters below:
+$$Y \sim N(\mu, \sigma^{2})$$ 
+
+* GLM relaxes these assumptions to any distribution in the exponential family.
+
+* In linear model $\mu=x^{t}\beta$
+
+* In GLM $\mu=g^{-1}(x^{t}\beta)$, for some $g$, meaning $x^{t}\beta$ is not directly a parameter.
+
+* This $g$ is known as the link function.
+
+* GLM also implies a relationship between the variance of $Y$ and the mean $\mu$, where $\phi$ is a dispersion parameter:
+$$Var(Y_{i}) = \phi Var(\mu_{i})$$
+
+## Exponential Family (Anjali)
+
+$$ f(y | \theta,\phi)=\exp(\frac{y\theta-b(\theta)}{a(\phi)}+c(y,\phi)) $$
+
+$\theta$ and $\phi$ are some parameters. 'a', 'b' and 'c' are functions that are also distinct for each member of the exponential family, and can therefore be used to specify the member of the exponential family.
+
+The exponential family distribution has mean and variance (See McCullagh and Nelder 1994, pg. 29):
+
+$$ \mathbf{E}(Y)=\mu=b'(\theta) $$
+$$ \mathbf{Var}(Y)=b''(\theta)a(\phi) $$
+
+If $\theta=g(\mu)$, $g$ is a canonical link function, as shown in the next slide.
+
+## Example: Poisson Distribution (Anjali)
+
+\begin{eqnarray*}
+\log(f(y | \theta,\phi))&=&\log(\frac{e^{-\mu}\mu^y}{y!}) \\
+&=&y\log(\mu)-\mu-\log(y!)
+\end{eqnarray*}
+
+Therefore, the canonical link function is given by
+$$\theta=\log(\mu) $$
+
+* This is also the most natural choice, since $\mu$ is positive for Poisson.
+* Most obvious choice computationally and mathematically.
+
+## Maximum Likelihood for the Poisson Distribution (Chen)
+The probability density function of a Poisson distribution is:
+$$f(y) = \exp^{-\mu}  \frac{\mu^{y}}{y!}$$
+
+The maximum likelihood equation in this case would be:
+$$\mathcal{L}(\beta) = \prod_{i=1}^n  \exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i} !}$$
+
+We then log-transform $f$ to turn the formula into a sum, instead of a product:
+\begin{eqnarray*}
+\prod_{i=1}^n  \exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i} !} &=& \sum_{i=1}^n \log [\exp^{-\mu_{i}}  \frac{\mu_{i}^{y_{i}}} {y_{i}!}] \\
+&=& \sum_{i=1}^n [-\mu_{i} + y_{i}\log(\mu_{i}) - \log(y_{i}!)]
+\end{eqnarray*}
+
+##
+If we then replace $\mu$  with $g^{-1} (X\beta)$:
+$$\sum_{i=1}^n [-g^{-1} (X\beta) + y_{i}\log(g^{-1} (X\beta)) - \log(y_{i}!)] $$
+
+Since $\log(y_{i}!)$ is not dependent on $\beta$, it does not need to be estimated. So our maximum likelihood formula becomes:
+$$\mathcal{L}(\beta) = \sum_{i=1}^n [-g^{-1} (X\beta) + Y_{i}\log(g^{-1} (X\beta))] $$
+
+## Analysing the Number of Accounts with Unclaimed Money [Anjali]
+
+* Problem: No response variable, like there is for amount.
+
+* Frequency Table
+
+## 
+
+\centering
+![Apic](Apic.png)
+
+## Modelling with Poisson [Anjali]
+
+* Treat 'Year' and 'Classified' as continuous variables.
+* Before, no zeroes
+* Now, abundance of zeroes
+
+![Description Pie](ANoterm.png)
+
+##
+
+![Description Pie](APoissonRes.png)
+
+## Plotting Against Year [Anjali]
+
+![Description Pie](ATrendinRes.png)
+
+## Account for Structures with Polynomials [Anjali]
+
+![Description Pie](A2term.png)
+
+##
+
+![Description Pie](A3term.png)
+
+## No adequate model, but variables are highly significant!
+
+![Description Pie](A3termanova.png)
+
+## Most significant variables 
+
+![Description Pie](2.png)
+
+
+## Account for Dispersion with quasi-Poisson [Anjali]
+
+* Same model (cannot fix the quantile-quantile plot, nor the residual trends with the fitted mean and year)
+* Estimates dispersion parameter (changed p-value to F-test)
+* Summary shows "Dispersion parameter for quasi-Poisson family taken to be 1588.388"
+* This confirms over-dispersion is present in the model.
+
+## Analysing the Amount within the Accounts [Chen]
+* Binomial distribution and Poisson distribution are part of the exponential family, but they are both discrete probability distributions. Hence they were not suited to model the amount of money, which is continuous.
+* For any random variable $\mathbf Y$. The variance $\mathbf{Var}(Y)$ relates to the mean $\mathbf{E}(Y)$ by the power law then it is Tweedie distribution.
+$$Y \sim T(\mu, \mu^{p})$$ 
+* An adequate GLM model needs to have following two conditions:
+    + Have a constant variance of the error terms, and they must have a mean of zero
+    + Deviance residuals of GLM model should look approximately Normally distributed regardless of its distribution.
+    
+## GLM Gaussian fits with $\log$ link function [Chen]
+![Description Pie](CGaussian1.png)
+
+##
+![Description Pie](CGaussian2.png)
+
+## GLM Gamma fits with $\log$ link function [Chen]
+![Description Pie](CGamma1.png)
+
+##
+![Description Pie](CGamma2.png)
+
+## GLM Tweedie fits with $\log$ link function [Chen]
+The link function for Tweedie distribution:
+$$\mu^q = X\beta$$
+By convention, the $\log$ link is power (q) of zero in the Tweedie link function.
+The variance function for Tweedie distribution:
+$$Var(Y) = \mu^p$$
+
+The largest variance power of the Tweedie model for convergence was 2.7.
+
+##
+![Description Pie](CTweedie1.png)
+
+##
+![Description Pie](CTweedie2.png)
+
+## Simple linear regression [Chen]
+![Description Pie](CTendinAmount.png)
+
+##
+* polynomial transformed variable poly (Year,4) and poly (Classified,4) 
+* log transformed the response 'Amount' to reduce skewness
+
+##
+![Description Pie](CNormal1.png)
+
+##
+![Description Pie](CNormal2.png)
+
+## No adequate model, but all variables are highly significant!
+![Description Pie](CAnova.png)
+
+##
+![Description Pie](CSummary.png)
+
+
+## Conclusion [Anjali]
+
+* Purpose:
+    + Which factors influence data?
+    + Can GLMs model this?
+* The finding are that our variables highly significant.
+    + Type
+    + Area
+    + Year Opened and Classified
+* New question: Can non-parametric methods be used to evaluate underlying structures?
+    + The results demonstrate over-dispersion.
+    + This raises questions about the limitations of GLMs.
+    + Models overall trends, not underlying structures.
+
+## References
+
+* Abs.gov.au,. '3218.0 - Regional Population Growth, Australia, 2013-14'. N.p., 2015. Web. 12 Aug. 2015.
+* Apps08.osr.nsw.gov.au,. 'NSW Office Of State Revenue'. N.p., 2015. Web. 30 July 2015. (https://www.
+apps08.osr.nsw.gov.au/erevenue/ucm/ucm_list.php)
+* Asx.com.au,. 'Home - Australian Securities Exchange - ASX'. N.p., 2015. Web. 17 Oct. 2015.
+* Faraway, Julian James. Extending Linear Models With R. Boca Raton, Fla.: Chapman & Hall/CRC, 2006.
+Print.
+* McCullagh, P, and John A Nelder. Generalized Linear Models. London: Chapman & Hall, 1994. Print.
+* Osr.nsw.gov.au,. 'About Unclaimed Money | Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.

@@ -1,0 +1,114 @@
+---
+title: "Anjali Individual Part"
+output: pdf_document
+---
+```{r, echo=FALSE}
+UM <- read.csv("G:/Quantitative Project/UM.csv")
+UM2 = na.omit(UM[,c("Amount", "Year", "Organisation.Type", "Area", "Classified")])
+UML = subset(UM2, Year > 1960 & Year < 2009)
+```
+
+# Analysing the number of accounts with unclaimed money (Anjali)
+
+The first problem with analysing the number of accounts is that there is no response variable for this in the data in its current form. To analyse the counts, and which variables correlate with count, we first create a table of frequencies. This table was then sorted by the frequency variable (Freq) in descending order, to find the intersection of categories that most occur in the data, thereby showing which variables correlate with unclaimed money.
+
+```{r}
+CountsUM = as.data.frame(xtabs(~ Area + Organisation.Type + Year + Classified + Description, data=UM))
+
+SortedCounts = CountsUM[order(-CountsUM$Freq), ]
+```
+
+This table shows the frequency of each intersection of the 4 variables, as shown below:
+
+```{r, echo=FALSE}
+names(SortedCounts)[names(SortedCounts)=="Organisation.Type"] <- "Type"
+names(SortedCounts)[names(SortedCounts)=="Classified"] <- "Class."
+print(SortedCounts[1:30,], row.name=FALSE)
+```
+
+From this table, it can be seen that unpresented cheques from insurance organisations in Sydney Metro, opened in 2008, and classified as unclaimed in 2014, have the highest number of accounts in the data, 7411 accounts, almost double the amount of the second most frequent category. Insurance organisations in Sydney Metro make up 6 of the top 10 categories. 
+
+Aside from metro areas, the rest of Queensland makes up a large chunk of accounts in unpresented cheques issued in 2008, probably due to a series of storms and floods which occured in the area at that time. These were classified in 2014 as unclaimed.
+
+One mysterious category, that does not fit the general trend of insurance and utility in metro areas, is the one with unknown area, involving deposits from the government that were issued and classified in 1993. This could be a case of mistaken data entry, as there is not enough time within one year to classify a deposit as unclaimed, according to the law. Further investigation of the original data in this category reveals that government organisation issuing these deposits was the Office of Real Estate Services, on the 20th of January 1993, and that no postcodes were recorded, so the area could not be classified in those cases.
+
+On the 29th of October, 1999, Energy Australia issues 1999 deposits, for which the postcodes are unknown, which were classified as unclaimed in 1999, also. The organisation name is listed as "Energy Aust (NCLE)" which indicated that these may be deposits for the Newcastle International Sports Centre sponsored by Energy Australia in 2001, for which some funding has yet to be claimed. 
+
+These kinds of chunks in the data reveal an underlying structure which is not continuous, and probably not suited to GLMs, but at this point, it is too late to try something else. 
+
+## Modelling with Poisson
+
+So, we make the 'Year' and 'Classified' variables continuous, to keep the model at a workable size. If each year was treated as a factor, independent of the other years, that could solve part of the problems with underlying structures in our data, but that requires much more RAM than we have access to at the moment. 
+
+```{r}
+#Using a slightly different counts table to model:
+Counts = as.data.frame(xtabs(~Area+Organisation.Type+Year+Classified, data=UML))
+
+Counts$Year = as.numeric(Counts$Year)
+Counts$Classified = as.numeric(Counts$Classified)
+```
+
+One other thing to be dealt with when modelling is that, at a level of factors, we now have the opposite problem than we had before. Before, in the original data, we had no zero values, since we had no data on those accounts which never contained any unclaimed money. Now, in the frequency table, we have an abudance of zeroes, in those intersections of categories which contain no accounts. We no longer have a need for a zero-truncated Poisson model, and we can use the Poisson model as it is usually used.
+
+```{r}
+PoissonAccounts <- glm(Freq ~ Area+Organisation.Type+Year+Classified, 
+                       family = poisson(link = "log"), data = Counts)
+```
+
+```{r}
+qqnorm(residuals(PoissonAccounts), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with no polynomial transform")
+qqline(residuals(PoissonAccounts))
+```
+
+A curvature can be seen in the fit of this model, meaning something significant is affecting the original data that we have not taken into account in this model. The curve looks like it is fanning out as the year increases, showing overdispersion. The downward curve at the bottom of the graph can be attributed to this fanning out also, as it fans out until it hits the minimum a residual can be, which is the negative of the mean.
+
+```{r}
+plot(residuals(PoissonAccounts) ~ Counts$Year, pch=16, ylab="Residuals", xlab="Fitted Means",  main = "Trend in Residuals")
+```
+
+This shows that the curve increases with the variable 'Year', indicating that there may be a polynomial relationship between year and the data.
+
+Here are two Poisson models, with different polynomial transformations. Each contains the same 4 variables, and a $\log$ link. The difference is that each uses a different power in the polynomial transformation. 
+
+```{r}
+PoissonAccounts.poly2 <- glm(Freq ~ Area+Organisation.Type+poly(Year,2)+poly(Classified,2), 
+                             family = poisson(link = "log"), data = Counts)
+
+PoissonAccounts.poly3 <- glm(Freq ~ Area+Organisation.Type+poly(Year,3)+poly(Classified,3), 
+                             family = poisson(link = "log"), data = Counts)
+```
+
+We must plot the residuals of each model for diagnostics.
+
+```{r}
+qqnorm(residuals(PoissonAccounts.poly2), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with Poly 2 Transform")
+qqline(residuals(PoissonAccounts.poly2))
+
+qqnorm(residuals(PoissonAccounts.poly3), pch=16, ylab="Residuals", 
+       xlab = "Number of Accounts", main = "Poisson Distribution with Poly 3 Transform")
+qqline(residuals(PoissonAccounts.poly3))
+```
+
+Although these graphs look the same, the polynomial transformation of power 3 is a slightly better fit, both waver at the ends, showing a curvature to the graph that has not been accounted for, either in the variables affecting the orginial data, or in the model itself. Many other kinds of models were tried, including the negative binomial, normal, inverse gaussian, and Anscombe transformations to try to find a fit by chance. Poisson is still the most successful, and an ANOVA will show that despite the bad fit, the variables we have considered are all highly significant.
+
+```{r}
+anova(PoissonAccounts.poly3, test = "LRT")
+```
+
+The last method we will try to take into account the overdispersion in this model, is a quasipoisson model. This model uses a parameter for the dispersion, a parameter which does not exist in the Poisson distribution, and has no mathematical backing for doing so. Its purpose is to fit models with these previously discussed problems.
+
+```{r}
+PoissonAccounts.6 <- glm(Freq ~ Area+Organisation.Type+Year+Classified, family = quasipoisson(link = "log"), data = Counts)
+
+anova(PoissonAccounts.6, test="F")
+
+qqnorm(residuals(PoissonAccounts.6), pch=16, ylab="Residuals", xlab = "Amount", main = "PoissonAccounts")
+plot(residuals(PoissonAccounts.6) ~ fitted(PoissonAccounts.6), pch=16, ylab="Residuals", xlab="Fitted Means")
+plot(residuals(PoissonAccounts.6) ~ Counts$Year, pch=16, ylab="Residuals", xlab="Fitted Means")
+```
+
+qqnorm(residuals(PoissonAccounts.6), pch=16, ylab="Residuals", xlab = "Amount", main = "PoissonAccounts")
+plot(residuals(PoissonAccounts.6) ~ fitted(PoissonAccounts.6), pch=16, ylab="Residuals", xlab="Fitted Means")
+plot(residuals(PoissonAccounts.6) ~ Counts$Year, pch=16, ylab="Residuals", xlab="Fitted Means")

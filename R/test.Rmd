@@ -1,0 +1,324 @@
+---
+title: "Unclaimed Money Presentation"
+output: beamer_presentation
+---
+
+# Introduction
+
+"People forget about accounts. They are bad bookkeepers, they move to different places and don't receive notices, they become insane or demented and they die. All of these unfortunate facts of life mean that there are substantial sums of "unclaimed money" in the hands of companies. 
+
+Our legal system, in common with most others, has taken the view that unclaimed money should benefit the public purse rather than be a private windfall."
+
+This research takes an in-depth look at both the monetary value and the number of accounts containing unclaimed money across Australia. 
+
+Reasons for choosing this topic:
+* No one has analysed this data publicly due to the lack of profit.
+* It is a challenge. We do our analysis from scratch using messy, real-world data and learn lots of useful coding skills and practical problem-solving skills.
+* It is public data set, so we do not have to worry about copyright.
+
+# Approach
+Data is available for unclaimed money for 380,671 accounts, going back to the year 1900. Methodology  involves data visualisation using Tableau, a drag and drop tool used for visual exploration, as well as R for merging, cleaning, sorting and GLM analysis, reproducing useful visualisations in code, and producing the final report using R Markdown. 
+
+* What variables affect the amount of unclaimed money, as well as the number of accounts?
+* Are any organization types correlated with frequency or amount of unclaimed money?
+    + i.e. Financial Services.
+    + i.e. Insurance.
+    + i.e. Government.
+    + i.e. Utility.
+    + i.e. Mortgage Lending etc.
+* Is frequency different across different areas?
+    + i.e. postcode, greater area, population density
+* Regression over the years of the dates each account was classified as unclaimed.
+
+#![](AmountTimeline.PNG)
+
+
+#![](DescriptionPie.PNG)
+
+# Approach 
+
+* The individual parts of the project are the modelling for the amounts vs. the modelling for the number of accounts
+    + Counting accounts means weighting areas by their population to obtain meaningful frequencies
+    + ...as well as using a zero-truncated Poisson model to account for the fact that our data only takes into account the ones with missing money.
+    + Amounts requires working out the distribution it has with each variable and using the appropriate link function to create a meaningful model.
+    + Finding the right distribution is going to be a challenge due to the amount of distributions covered by GLM and their similarity.
+    
+$$ P(X=x)=\frac{\lambda ^ k e^{- \lambda} }{k ! \left ( 1 - e^{- \lambda} \right )} $$
+
+# Resources out there...
+
+Some analysis takes place through businesses, such as AURFS, which locate claimants and offer claiming services in exchange for a percentage of the claim. However, this ignores the vast amount of money held in small amounts across many accounts. 
+
+ASIC is tasked with locating and informing claimants of money but have expressed lack of resources and overwhelming number of accounts due to law changes.
+
+So, we downloaded public data from NSW Office of State Revenue (OSR), 2014 population data from the Australian Bureau of Statistics (ABS), then...
+
+# Extracting Postcodes using regex function
+Data collation has so far involved file conversion, merging the 26 alphabetical files into one, and extracting postcodes using a regex function The regex pattern was sourced using Australia Post postcode area definitions. PO Box and Locked Bag numbers were being included in the regex, therefore all 4 digits numbers after the words PO Box or Locked Bag had to be removed before extracting the data.
+
+Pattern for extracting postcodes (line-break for printing only)
+
+$$ AU <- "(0[289][0-9]{2})|([1345689][0-9]{3})|$$
+$$ (2[0-8][0-9]{2})|(290[0-9])|(291[0-4])| $$
+$$ (7[0-4][0-9]{2})|(7[8-9][0-9]{2})" $$
+
+
+# Classifying Postcodes into categories
+Postcodes needed to be categorised into larger areas to allow sufficient variation of data in each of the categories to facilitate analysis of the data overall. The postcode ranges were sourced online:
+
+We classified postcodes by creating a function of if-statements:
+
+```{r, eval=FALSE}
+PC2Area = function(PC) {
+  
+  if( PC %in% c(2600, 2601, 2610) )                                                                                  return("Canberra CBD")
+  if( PC >= 2601 && PC <= 2609 )                                                                                     return("Canberra Metro")
+  ...
+
+```
+
+# Classifying Postcodes into categories
+
+Area | Postcode Range
+-----|---------------------------------------------------------------
+Canberra CBD |	2600, 2601, 2610
+Canberra |	2601 - 2609
+Rest of ACT |	2611 - 2620
+Sydney CBD |	1100 - 1299, 2000, 2001, 2007, 2009
+Sydney Metro |	2002 - 2006, 2008, 2010 - 2234
+Riverina Area |	2640 - 2660
+Wollongong |	2500 - 2534
+Newcastle |	2265 - 2333
+Northern Rivers |	2413 - 2484
+Rest of NSW |	2235 - 2412, 2485 - 2999
+Melbourne CBD |	3000 - 3006, 3205, 8000 - 8399
+Melbourne Metro |	3007 - 3204, 3206, 3207
+Rest of VIC |	3208 - 3999
+Brisbane CBD |	4000, 4001, 4003, 9000 - 9015
+Brisbane Metro |	4002, 4004 - 4207, 4300 - 4305, 4500 - 4519
+Gold Coast |	4208 - 4287
+Sunshine Coast |	4550 - 4575
+Rest of QLD |	4288 - 4299, 4306 - 4499, 4520 - 4549, 4576 - 4999
+Adelaide CBD |	5000, 5001, 5004, 5005, 5810, 5839, 5880 - 5889
+Adelaide Metro |	5002, 5003, 5006 - 5199
+Rest of SA |	5200 - 5749, 5825 - 5854
+Perth CBD |	6000, 6001, 6004, 6827, 6830 - 6832, 6837 - 6849
+Perth Metro |	6002, 6003, 6005 - 6199
+Rest of WA |	6200 - 6826, 6828, 6829, 6833 - 6836, 6850 - 6999
+Hobart CBD |	7000, 7001
+Hobart Metro |	7002 - 7099 
+Rest of TAS |	7100 - 7999
+Darwin Metro |	0800 - 0832
+Rest of NT |	0833 - 0899
+
+
+#![](AreaMap.PNG)
+
+
+#![](AreaPie.PNG)
+
+# Categorising Organisations
+Categories for the top 100 companies were collated by hand using company websites and information available on ASX (Australian Share Index). The sum of the number of accounts increased by only 1% for every 10 companies added above 100, whereas leading up to 100, the number of accounts was increasing by 2% with diminishing return after 100. The top 100 occurring organisations covers 75% of the data. The number 100 was decided upon in the following method:
+
+```{r, eval=FALSE}
+#Making a matrix for optimising organisation classification
+NumEntries = c(268, 276, 283, 289, 295, 299, 304, 307, 311, 314)
+NumTopOrg = c(70, 80, 90, 100, 110, 120, 130, 140, 150, 160)
+percentage = NumEntries/380
+ORGSUM = data.frame(NumEntries, NumTopOrg, percentage)
+```
+
+To match the column 'Organisation.Name' in Unclaimed Money (UM) with the column 'Organisation.Type' in Company Category (CC), which was categorised by hand...
+
+# Categorising Organisations
+Organisation |	Type
+-------------|:------------------------------------------------------------------------:
+QANTAS AIRWAYS LTD|Airline
+GRAINCORP LTD|Beverage and Food
+GOODMAN FIELDER LTD|Beverage and Food
+COCA-COLA AMATIL LTD|Beverage and Food
+LION NATHAN LTD|Beverage and Food
+USANA AUST PTY LTD|Beverage and Food
+MACQUARIE UNI|Education
+THE UNI OF NSW|Education
+AMP LTD|Financial Services
+AMP LTD/AMP|Financial Services
+WESTPAC BANKING CORP|Financial Services
+VEDA ADVANTAGE LTD|Financial Services
+ING AUST LTD|Financial Services
+AMERICAN EXPRESS AUST LTD|Financial Services
+CAPITAL FIN AUST LTD|Financial Services
+CHALLENGER LTD/CGF|Financial Services
+CWEALTH SECURITIES LTD|Financial Services
+ESANDA FIN CORP LTD|Financial Services
+TOYOTA FIN AUST LTD|Financial Services
+AMP GROUP FIN SERVS LTD|Financial Services
+CHALLENGER LTD|Financial Services
+TAB LTD|Gaming
+TABCORP HLDGS LTD & TABCORP HLDGS LTD|Gaming
+ARISTOCRAT LEISURE LTD|Gaming
+OFFICE OF REAL EST SERVICES|Government
+CITY OF SYDNEY|Government
+PARRAMATTA CITY CNCL|Government
+FAIRFIELD CITY CNCL & WOLLONDILLY SHIRE CNCL|Government
+BORAL LTD|Industrial 
+RINKER GROUP PTY LTD|Industrial 
+OFFSET ALPINE PRINTING GROUP PTY LTD|Industrial 
+ONESTEEL LTD|Industrial 
+CSR LTD|Industrial 
+BRAMBLES INDUSTS LTD|Industrial 
+CSR LIMITED|Industrial 
+INTOLL GROUP|Industrial 
+MBF AUST LTD|Insurance
+INS AUST GROUP|Insurance
+INS AUST GROUP LTD|Insurance
+INS AUST GROUP LTD/IAG|Insurance
+GIO GEN LTD|Insurance
+THE HOSPITALS CONTRIBUTION FUND OF AUST LTD|Insurance
+QBE INS (AUST) LTD|Insurance
+SUNCORP|Insurance
+NIB HEALTH FUNDS|Insurance
+ALLIANZ INS AUST LTD|Insurance
+CWEALTH INS LTD|Insurance
+ING IND FUND|Insurance
+ACE INS LTD|Insurance
+CGU INSURANCE LTD|Insurance
+ECORP LTD|IT
+APN NEWS & MEDIA LTD|Media Company
+CNSLD MEDIA HLDGS LTD|Media Company
+TEN NETWORK HLDGS|Media Company
+FAIRFAX MEDIA LTD|Media Company
+ARRIUM LTD|Mining
+AUN|Mining
+GENWORTH FIN MORTGAGE INS PTY LTD|Mortgage Lending
+GALILEE SOLICITORS|Mortgage Lending
+QBE LENDERS MORTGAGE INSCE LTD|Mortgage Lending
+NATIONAL LENDING SOLUTIONS| Mortgage Lending
+CAMBRIDGE CREDIT CORP LTD|Property Management
+MIRVAC REAL EST INVEST TRUST|Property Management
+GENERAL PROPERTY TRUST|Property Management
+LEND LEASE GROUP/LLC|Property Management
+MIRVAC REAL EST INVEST TRUST (FORMERLY MERIDIAN)|Property Management
+LEND LEASE CORP LTD|Property Management
+WESTFIELD GROUP|Property Management
+WESTFIELD GROUP/WDC|Property Management
+MIRVAC GROUP|Property Management
+INVESTA PROPERTY GROUP|Property Management
+STOCKLAND CORP LTD|Property Management
+WOOLWORTHS LTD|Retailer
+WOOLWORTHS LIMITED|Retailer
+DAVID JONES LIMITED|Retailer
+WOOLWORTHS LTD/WOW|Retailer
+METCASH LTD|Retailer
+AMP SUPER SAVINGS TRUST|SuperFund
+AUST'N ELIGIBLE ROLLOVER FUND|SuperFund
+SUPERTRACE ELIGIBLE ROLLOVER FUND|SuperFund
+AMP ELIGIBLE ROLLOVER FUND|SuperFund
+UNIVERSAL SUPER SCHEME FUND|SuperFund
+STATE SUPER|SuperFund
+BT FUNDS MGMT|SuperFund
+CLUB PLUS SUPER PTY LTD|SuperFund
+COLONIAL MUTUAL LIFE ASSUR LTD|SuperFund
+AON ELIGIBLE ROLLOVER FUND|SuperFund
+LEGAL & GEN SUPERTRACE|SuperFund
+AUST PRIMARY SUPER FUND|SuperFund
+SINGTEL OPTUS|Utility
+ENERGY AUST (NCLE)|Utility
+AUSGRID|Utility
+THE AUSTRALIAN GAS LIGHT COMPANY|Utility
+AGL ENERGY LTD|Utility
+ORIGIN ENERGY LTD|Utility
+ENERGY AUST|Utility
+COUNTRY ENERGY|Utility
+INTEGRAL ENERGY	|Utility
+ORIGIN|Utility
+JACK GREEN (INTNL) PTY LTD|Utility
+
+
+#![](TypePie.PNG)
+
+
+# Adding population data for each area
+We downloaded a file from ABS website (File name 3218.0 Regional Population Growth, Australia) which was released at 11:30 am 31/03/2015.  We used the latest data from 2014, and categorised the postcode into 21 areas.
+We matched all 21 postcode areas to the corresponding ABS data:
+
+PC AREA | ABS AREA | 2014 POP.
+---------|----------|---------------------------
+Canberra CBD | Canberra Inner City | 1 
+Canberra | Greater Canberra | 79183 
+Rest of ACT | Rest of ACT | 306813 
+Sydney CBD | Sydney Inner City | 203774 
+Sydney Metro | Greater Sydney | 4636854 
+Riverina Area | Riverina Area | 158144 
+Wollongong | Wollongong | 296845 
+Newcastle | Newcastle | 368131 
+Northern Rivers | Richmond Tweed | 242116 
+Rest of NSW | Rest of NSW | 1612608 
+Melbourne CBD | Melbourne City | 122190 
+Melbourne Metro  | Greater Melbourne | 4318138 
+Rest of VIC | Rest of VIC | 1401339 
+Brisbane CBD | Brisbane Inner | 65542 
+Brisbane Metro | Greater Brisbane | 2209018 
+Gold Coast | Cairns | 242498 
+Sunshine Coast | Sunshine Coast | 335874 
+Rest of QLD | Rest of QLD | 1869515 
+Adelaide CBD | Adelaide City | 22690 
+Adelaide Metro | Greater Adelaide | 1281941 
+Rest of SA | Rest of SA | 381083 
+Perth CBD | Perth City | 108216 
+Perth Metro | Greater Perth | 1912987 
+Rest of WA | Rest of WA | 552186 
+Hobart CBD | Hobart Inner | 50757 
+Hobart Metro | Greater Hobart | 168486 
+Rest of TAS | Rest of TAS | 295519 
+Darwin Metro | Darwin City | 26281 
+Rest of NT | Rest of NT | 78412 
+
+# Concept
+GLM is named the "generalised linear model" due to its capability of unifying statistical models. It can handle non-normal responses such as the number of accounts and amount of money lost.
+
+The main difference is that GLM allows the user to specify the distribution of errors, whereas linear models assume the distribution of errors is normal. 
+
+GLM handles responses that consist of either 0 or 1 through binomial regression, and discrete counts through Poisson regression. GLM transforms the data to make the response and variables linearly related regardless of whether that data within them follows a normal distribution. 
+
+
+# Statistical Theory
+
+GLM = linear model + link function ( depend on distribution model) + dispersion parameter
+
+This is the generalised model:
+$$ f(y | \theta,\phi)=exp(\frac{y\theta-b(\theta)}{a(\phi)}+c(y,\phi)) $$
+
+Canonical link functions for GLMs:
+
+Family|Link|Variance Function
+:-------:|:------:|:-------------------------------------:
+$Normal$|$\mu$|$1$
+$Poisson$|$\log(\mu)$|$\mu$
+$Binomial$|$\log(\frac{\mu}{1-\mu})$|$\frac{\mu}{1-\mu}$
+$Gamma$|$\frac{1}{\mu}$|$\mu^2$
+
+# Poisson Distribution
+For a Poisson distribution, the link function is derived as follows: 
+
+$$ f(y | \theta,\phi)=\frac{e^{-\mu}\mu^y}{y!} $$
+$$ exp(\log(\mu^y)-\mu+-\log(y!)) $$
+
+Therefore, the link function is 
+$$\theta=\log(\mu) $$
+
+In statistics, $\log$ is base 10 and $\mu$ is the mean. 
+In this way, GLM can be used to capture non-linear data structures.
+
+
+# References
+
+Apps08.osr.nsw.gov.au,. 'NSW Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+
+Faraway, Julian James. Extending Linear Models With R. Boca Raton, Fla.: Chapman & Hall/CRC, 2006. Print.
+
+Osr.nsw.gov.au,. 'About Unclaimed Money | Office Of State Revenue'. N.p., 2015. Web. 30 July 2015.
+
+Abs.gov.au,. '3218.0 -  Regional Population Growth, Australia, 2013-14'. N.p., 2015. Web. 12 Aug. 2015.
+
+Tyree, Alan L. 'Unclaimed Money -- Again'. Austlii.edu.au. N.p., 2015. Web. 22 Aug. 2015.
