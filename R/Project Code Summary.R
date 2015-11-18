@@ -1,7 +1,7 @@
 #Write the year each account was classified, as unclaimed, to UM as a new variable.
 dates = as.Date(UM$Date, format="%d-%b-%y")
 UM$Classified= as.numeric(format(dates,"%Y"))
-write.csv(UM, file = "UM.csv", row.names = FALSE)
+write.csv(UM, file = "./output/UM.csv", row.names = FALSE)
 
 #Plotting the distribution of years
 plot(table(UM$Year), main = "Distribution of Years in Unclaimed Money")

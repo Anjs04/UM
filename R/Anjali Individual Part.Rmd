@@ -3,7 +3,7 @@ title: "Anjali Individual Part"
 output: pdf_document
 ---
 ```{r, echo=FALSE}
-UM <- read.csv("G:/Quantitative Project/UM.csv")
+UM <- read.csv("output/UM.csv")
 UM2 = na.omit(UM[,c("Amount", "Year", "Organisation.Type", "Area", "Classified")])
 UML = subset(UM2, Year > 1960 & Year < 2009)
 ```
